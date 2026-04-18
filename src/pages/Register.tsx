@@ -106,41 +106,49 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
     onComplete(profile, lang, platform);
   };
 
-  const handleInstall = () => {
+  /** Force-download a file from server by fetching as blob */
+  const forceDownload = async (url: string, fileName: string) => {
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = fileName;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      }, 100);
+    } catch {
+      // Fallback: direct link
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+    }
+  };
+
+  const handleInstall = async () => {
     if (!platform) return;
     setDownloading(true);
 
-    if (platform === "android" || platform === "ios") {
-      // Mobile: open app in new tab -> browser will offer PWA install
-      window.open(window.location.origin, "_blank");
+    try {
+      if (platform === "android" || platform === "ios") {
+        // Mobile: open app in new tab for PWA install
+        window.open(window.location.origin, "_blank");
+      } else if (platform === "linux") {
+        await forceDownload("/installers/meshlink-install.sh", "meshlink-install.sh");
+      } else {
+        await forceDownload("/installers/Meshlink-Install.bat", "Meshlink-Install.bat");
+      }
+    } finally {
       setTimeout(() => {
         setDownloading(false);
         setStep("profile");
       }, 1500);
-    } else if (platform === "linux") {
-      // Linux: download real AppImage
-      const a = document.createElement("a");
-      a.href = "/installers/Meshlink.AppImage";
-      a.download = "Meshlink.AppImage";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => {
-        setDownloading(false);
-        setStep("profile");
-      }, 2000);
-    } else {
-      // Windows: download .bat installer
-      const a = document.createElement("a");
-      a.href = "/installers/Meshlink-Install.bat";
-      a.download = "Meshlink-Install.bat";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => {
-        setDownloading(false);
-        setStep("profile");
-      }, 2000);
     }
   };
 
@@ -287,8 +295,8 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
                   <div className="space-y-2">
                     <p className="text-[11px] text-muted-foreground">
                       {platform === "linux"
-                        ? "Downloads Meshlink.AppImage (116 MB). Run: chmod +x Meshlink.AppImage && ./Meshlink.AppImage"
-                        : "Downloads installer. Double-click to create Desktop shortcut."
+                        ? "Downloads installer script. Run in terminal: chmod +x meshlink-install.sh && ./meshlink-install.sh"
+                        : "Downloads installer script. Double-click to run and create Desktop shortcut."
                       }
                     </p>
                     <p className="text-[10px] font-mono text-muted-foreground">
