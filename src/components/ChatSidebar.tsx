@@ -29,7 +29,7 @@ export function ChatSidebar({ chats, selectedChatId, onSelectChat }: ChatSidebar
   const unpinned = filtered.filter((c) => !c.pinned);
 
   return (
-    <div className="relative flex h-full w-80 flex-col border-r border-border/40 glass-strong">
+    <div className="relative flex h-full w-full md:w-80 flex-col border-r border-border/40 glass-strong">
       {/* Decorative glow */}
       <div className="pointer-events-none absolute -top-20 -left-20 h-60 w-60 rounded-full bg-primary/20 blur-3xl" />
 

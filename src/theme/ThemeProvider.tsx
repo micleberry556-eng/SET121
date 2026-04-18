@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect } from "react";
 
 type PaletteInfo = {
   id: string;
@@ -34,9 +34,18 @@ export function useTheme() {
   return useContext(ThemeContext);
 }
 
+function getInitialMode(): "dark" | "light" {
+  if (typeof window === "undefined") return "dark";
+  const stored = localStorage.getItem("meshlink-mode");
+  if (stored === "light" || stored === "dark") return stored;
+  return "dark";
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [palette, setPaletteState] = useState(() => localStorage.getItem("meshlink-palette") || "violet");
-  const [mode, setMode] = useState<"dark" | "light">(() => (localStorage.getItem("meshlink-mode") as "dark" | "light") || "dark");
+  const [palette, setPaletteState] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("meshlink-palette") || "violet" : "violet"
+  );
+  const [mode, setMode] = useState<"dark" | "light">(getInitialMode);
 
   const setPalette = (id: string) => {
     setPaletteState(id);
@@ -51,7 +60,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  useEffect(() => {
+  // Apply dark class immediately to prevent flash
+  useLayoutEffect(() => {
     const root = document.documentElement;
     if (mode === "dark") {
       root.classList.add("dark");

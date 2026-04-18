@@ -1,12 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { Phone, Video, MoreVertical, Paperclip, Smile, Send, Lock, Hash, Users, Sparkles, Mic } from "lucide-react";
+import {
+  Phone, Video, MoreVertical, Paperclip, Smile, Send,
+  Lock, Hash, Users, Sparkles, Mic, ArrowLeft,
+} from "lucide-react";
 import { Chat, Message } from "@/data/mockData";
 
 interface ChatViewProps {
   chat: Chat;
+  onSendMessage: (chatId: string, text: string) => void;
+  onBack: () => void;
 }
 
-export function ChatView({ chat }: ChatViewProps) {
+export function ChatView({ chat, onSendMessage, onBack }: ChatViewProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -16,6 +21,7 @@ export function ChatView({ chat }: ChatViewProps) {
 
   const handleSend = () => {
     if (!input.trim()) return;
+    onSendMessage(chat.id, input.trim());
     setInput("");
   };
 
@@ -26,8 +32,16 @@ export function ChatView({ chat }: ChatViewProps) {
       <div className="pointer-events-none absolute bottom-1/4 left-1/3 h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
 
       {/* Header */}
-      <div className="relative z-10 flex items-center justify-between border-b border-border/40 px-6 py-3.5 glass-strong">
+      <div className="relative z-10 flex items-center justify-between border-b border-border/40 px-4 md:px-6 py-3.5 glass-strong">
         <div className="flex items-center gap-3">
+          {/* Back button on mobile */}
+          <button
+            onClick={onBack}
+            className="md:hidden rounded-xl p-2 hover:bg-surface-hover transition-all"
+          >
+            <ArrowLeft className="h-5 w-5 text-foreground" />
+          </button>
+
           <div className={`flex h-10 w-10 items-center justify-center rounded-2xl text-xs font-bold ${
             chat.type === "channel"
               ? "bg-gradient-to-br from-accent/30 to-accent/10 text-accent border border-accent/20"
@@ -65,10 +79,10 @@ export function ChatView({ chat }: ChatViewProps) {
         <div className="flex items-center gap-1">
           {chat.type === "dm" && (
             <>
-              <button className="rounded-xl p-2.5 hover:bg-surface-hover transition-all hover:scale-105 hover:text-primary">
+              <button className="hidden sm:flex rounded-xl p-2.5 hover:bg-surface-hover transition-all hover:scale-105 hover:text-primary">
                 <Phone className="h-4 w-4 text-muted-foreground" />
               </button>
-              <button className="rounded-xl p-2.5 hover:bg-surface-hover transition-all hover:scale-105 hover:text-primary">
+              <button className="hidden sm:flex rounded-xl p-2.5 hover:bg-surface-hover transition-all hover:scale-105 hover:text-primary">
                 <Video className="h-4 w-4 text-muted-foreground" />
               </button>
             </>
@@ -89,7 +103,7 @@ export function ChatView({ chat }: ChatViewProps) {
       </div>
 
       {/* Messages */}
-      <div className="relative z-10 flex-1 overflow-y-auto px-6 py-6 scrollbar-thin">
+      <div className="relative z-10 flex-1 overflow-y-auto px-4 md:px-6 py-6 scrollbar-thin">
         <div className="mx-auto max-w-3xl space-y-4">
           {chat.messages.map((msg, i) => (
             <MessageBubble key={msg.id} message={msg} index={i} />
@@ -99,30 +113,30 @@ export function ChatView({ chat }: ChatViewProps) {
       </div>
 
       {/* Input */}
-      <div className="relative z-10 border-t border-border/40 px-6 py-4 glass-strong">
+      <div className="relative z-10 border-t border-border/40 px-4 md:px-6 py-3 md:py-4 glass-strong">
         <div className="mx-auto flex max-w-3xl items-end gap-2">
-          <button className="rounded-2xl p-3 hover:bg-surface-hover transition-all hover:scale-105 hover:text-primary">
+          <button className="hidden sm:flex rounded-2xl p-3 hover:bg-surface-hover transition-all hover:scale-105 hover:text-primary">
             <Paperclip className="h-4 w-4 text-muted-foreground" />
           </button>
-          <div className="group flex flex-1 items-center gap-2 rounded-2xl glass border border-border/50 px-4 py-3 transition-all focus-within:border-primary/50 focus-within:shadow-glow">
+          <div className="group flex flex-1 items-center gap-2 rounded-2xl glass border border-border/50 px-3 md:px-4 py-2.5 md:py-3 transition-all focus-within:border-primary/50 focus-within:shadow-glow">
             <input
               type="text"
               placeholder="Type a secure message..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
               className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
             />
-            <button className="hover:text-primary transition-colors">
+            <button className="hidden sm:flex hover:text-primary transition-colors">
               <Smile className="h-4 w-4 text-muted-foreground" />
             </button>
-            <button className="hover:text-primary transition-colors">
+            <button className="hidden sm:flex hover:text-primary transition-colors">
               <Mic className="h-4 w-4 text-muted-foreground" />
             </button>
           </div>
           <button
             onClick={handleSend}
-            className={`rounded-2xl p-3 transition-all hover:scale-105 ${
+            className={`rounded-2xl p-2.5 md:p-3 transition-all hover:scale-105 ${
               input.trim()
                 ? "gradient-primary text-primary-foreground shadow-glow"
                 : "bg-secondary text-muted-foreground"
@@ -143,7 +157,7 @@ function MessageBubble({ message, index }: { message: Message; index: number }) 
   if (isSystem) {
     return (
       <div className="flex justify-center animate-fade-in-up" style={{ animationDelay: `${index * 30}ms` }}>
-        <div className="max-w-[80%] rounded-2xl glass border border-primary/20 px-5 py-4 shadow-soft">
+        <div className="max-w-[90%] md:max-w-[80%] rounded-2xl glass border border-primary/20 px-4 md:px-5 py-3 md:py-4 shadow-soft">
           <p className="text-xs font-mono text-foreground whitespace-pre-line leading-relaxed">{message.text}</p>
           <p className="mt-2 text-[10px] font-mono text-muted-foreground text-center">{message.timestamp}</p>
         </div>
@@ -157,7 +171,7 @@ function MessageBubble({ message, index }: { message: Message; index: number }) 
       style={{ animationDelay: `${index * 30}ms` }}
     >
       <div
-        className={`max-w-[75%] rounded-3xl px-4 py-2.5 ${
+        className={`max-w-[85%] md:max-w-[75%] rounded-3xl px-4 py-2.5 ${
           isOwn
             ? "rounded-br-md text-primary-foreground shadow-elegant"
             : "rounded-bl-md bg-chat-other border border-border/40"
