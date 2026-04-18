@@ -89,13 +89,25 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
     onComplete(profile, lang, platform);
   };
 
-  const handleDownload = (fileName: string) => {
-    // Simulate download -- in production this would link to real files
+  const handleDownload = (p: typeof platforms[0]) => {
+    // Create a small placeholder file for download
+    const content = `Meshlink Installer Placeholder\n\nFile: ${p.fileName}\nPlatform: ${p.name} (${p.description})\n\nThis is a placeholder. In production, this would be the real ${p.fileSize} installer.\nVisit https://meshlink.app/download for the latest version.\n`;
+    const blob = new Blob([content], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = "#";
-    a.download = fileName;
-    // Show alert since we don't have real binaries
-    alert(`Download started: ${fileName}\n\nIn production, this downloads the real installer.`);
+    a.href = url;
+    a.download = p.fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePlatformSelect = (id: PlatformId) => {
+    setPlatform(id);
+    // Auto-download immediately
+    const p = platforms.find((x) => x.id === id);
+    if (p) handleDownload(p);
   };
 
   const canProceedProfile = name.trim().length >= 2;
@@ -216,7 +228,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
               {platforms.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setPlatform(p.id)}
+                  onClick={() => handlePlatformSelect(p.id)}
                   className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all ${
                     platform === p.id
                       ? "border-primary/50 bg-primary/10 shadow-glow"
@@ -236,25 +248,30 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground">{p.name}</p>
                     <p className="text-[11px] text-muted-foreground">{p.description}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground">{p.fileName} ({p.fileSize})</p>
                   </div>
-                  {platform === p.id && (
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full gradient-primary">
-                      <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                  {platform === p.id ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full gradient-primary">
+                        <Check className="h-3.5 w-3.5 text-primary-foreground" />
+                      </div>
+                      <span className="text-[9px] text-online font-mono">Downloaded</span>
                     </div>
+                  ) : (
+                    <Download className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   )}
                 </button>
               ))}
             </div>
 
-            {/* Download button */}
+            {/* Re-download button if already selected */}
             {platform && (
               <button
-                onClick={() => handleDownload(platforms.find((p) => p.id === platform)!.fileName)}
+                onClick={() => { const p = platforms.find((x) => x.id === platform); if (p) handleDownload(p); }}
                 className="w-full flex items-center justify-center gap-2 rounded-2xl border border-accent/40 py-2.5 text-sm font-medium text-accent hover:bg-accent/10 transition-all mb-4"
               >
                 <Download className="h-4 w-4" />
-                Download {platforms.find((p) => p.id === platform)!.fileName}
-                <span className="text-[10px] text-muted-foreground">({platforms.find((p) => p.id === platform)!.fileSize})</span>
+                Re-download {platforms.find((p) => p.id === platform)?.fileName}
               </button>
             )}
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   X, Camera, ArrowLeft, User, AtSign, FileText, Shield,
   Eye, EyeOff, Phone, Users, MessageSquare, CheckCheck,
@@ -60,11 +60,14 @@ export function AccountSettings({ open, profile, onClose, onUpdate }: AccountSet
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatarUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync draft when profile changes externally or dialog reopens
-  const syncFromProfile = useCallback(() => {
-    setDraft({ ...profile });
-    setAvatarPreview(profile.avatarUrl);
-  }, [profile]);
+  // Re-sync draft from profile every time dialog opens
+  useEffect(() => {
+    if (open) {
+      setDraft({ ...profile });
+      setAvatarPreview(profile.avatarUrl);
+      setPage("main");
+    }
+  }, [open, profile]);
 
   if (!open) return null;
 
@@ -107,17 +110,17 @@ export function AccountSettings({ open, profile, onClose, onUpdate }: AccountSet
   };
 
   const handleClose = () => {
-    setPage("main");
-    syncFromProfile();
     onClose();
   };
 
   const goBack = () => {
     if (page !== "main") {
-      syncFromProfile();
+      // Discard edits, reset to saved profile
+      setDraft({ ...profile });
+      setAvatarPreview(profile.avatarUrl);
       setPage("main");
     } else {
-      handleClose();
+      onClose();
     }
   };
 
