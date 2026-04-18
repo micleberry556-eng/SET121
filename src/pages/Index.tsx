@@ -33,10 +33,15 @@ const initialStories: Story[] = [
   },
 ];
 
-const Index = () => {
+interface IndexProps {
+  initialProfile?: UserProfile;
+  onProfileChange?: (p: UserProfile) => void;
+}
+
+const Index = ({ initialProfile, onProfileChange }: IndexProps = {}) => {
   const [chatList, setChatList] = useState<Chat[]>(initialChats);
   const [stories, setStories] = useState<Story[]>(initialStories);
-  const [profile, setProfile] = useState<UserProfile>(defaultProfile);
+  const [profile, setProfile] = useState<UserProfile>(initialProfile || defaultProfile);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -131,6 +136,7 @@ const Index = () => {
 
   const handleUpdateProfile = (updated: UserProfile) => {
     setProfile(updated);
+    onProfileChange?.(updated);
   };
 
   const handleCall = (type: CallType) => {
