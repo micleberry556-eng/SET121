@@ -89,175 +89,22 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
     onComplete(profile, lang, platform);
   };
 
-  const serverUrl = window.location.origin;
-
-  const handleDownload = (p: typeof platforms[0]) => {
-    let content: string;
-    let mimeType: string;
-    let fileName: string;
-
-    switch (p.id) {
-      case "windows":
-        // Windows .bat installer -- creates shortcut and opens app
-        fileName = "Meshlink-Install.bat";
-        mimeType = "application/bat";
-        content = [
-          "@echo off",
-          "title Meshlink Installer",
-          "echo ========================================",
-          "echo    Meshlink - Decentralized Messenger",
-          "echo ========================================",
-          "echo.",
-          "echo Installing Meshlink...",
-          "echo.",
-          "",
-          ":: Create app directory",
-          'mkdir "%USERPROFILE%\\Meshlink" 2>nul',
-          "",
-          ":: Create launcher script",
-          `echo @echo off > "%USERPROFILE%\\Meshlink\\Meshlink.bat"`,
-          `echo start "" "${serverUrl}" >> "%USERPROFILE%\\Meshlink\\Meshlink.bat"`,
-          "",
-          ":: Create desktop shortcut via PowerShell",
-          'powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([System.IO.Path]::Combine([Environment]::GetFolderPath(\'Desktop\'), \'Meshlink.lnk\')); $s.TargetPath = \'%USERPROFILE%\\Meshlink\\Meshlink.bat\'; $s.IconLocation = \'shell32.dll,13\'; $s.Description = \'Meshlink Messenger\'; $s.Save()"',
-          "",
-          "echo.",
-          "echo ========================================",
-          "echo  Meshlink installed successfully!",
-          "echo  Shortcut created on Desktop.",
-          "echo ========================================",
-          "echo.",
-          `echo Opening Meshlink...`,
-          `start "" "${serverUrl}"`,
-          "timeout /t 3",
-        ].join("\r\n");
-        break;
-
-      case "linux":
-        // Linux .sh installer -- creates .desktop entry and opens app
-        fileName = "meshlink-install.sh";
-        mimeType = "application/x-sh";
-        content = [
-          "#!/bin/bash",
-          'echo "========================================"',
-          'echo "   Meshlink - Decentralized Messenger"',
-          'echo "========================================"',
-          'echo ""',
-          'echo "Installing Meshlink..."',
-          "",
-          "# Create app directory",
-          "mkdir -p ~/Meshlink",
-          "",
-          "# Create launcher",
-          `echo '#!/bin/bash' > ~/Meshlink/meshlink.sh`,
-          `echo 'xdg-open "${serverUrl}" 2>/dev/null || open "${serverUrl}" 2>/dev/null || echo "Open ${serverUrl} in your browser"' >> ~/Meshlink/meshlink.sh`,
-          "chmod +x ~/Meshlink/meshlink.sh",
-          "",
-          "# Create desktop shortcut",
-          "mkdir -p ~/.local/share/applications",
-          "cat > ~/.local/share/applications/meshlink.desktop << 'DESKTOP'",
-          "[Desktop Entry]",
-          "Name=Meshlink",
-          "Comment=Decentralized Encrypted Messenger",
-          `Exec=xdg-open ${serverUrl}`,
-          "Icon=internet-chat",
-          "Type=Application",
-          "Categories=Network;Chat;",
-          "DESKTOP",
-          "",
-          "# Create desktop icon",
-          'if [ -d "$HOME/Desktop" ]; then',
-          "  cp ~/.local/share/applications/meshlink.desktop ~/Desktop/",
-          "  chmod +x ~/Desktop/meshlink.desktop 2>/dev/null",
-          "fi",
-          "",
-          'echo ""',
-          'echo "========================================"',
-          'echo "  Meshlink installed successfully!"',
-          'echo "  Desktop shortcut created."',
-          'echo "========================================"',
-          'echo ""',
-          `echo "Opening Meshlink..."`,
-          `xdg-open "${serverUrl}" 2>/dev/null || echo "Open ${serverUrl} in your browser"`,
-        ].join("\n");
-        break;
-
-      case "android":
-        // Android -- HTML file that opens the PWA install page
-        fileName = "Meshlink-Install.html";
-        mimeType = "text/html";
-        content = [
-          "<!DOCTYPE html>",
-          '<html><head><meta charset="utf-8">',
-          '<meta name="viewport" content="width=device-width,initial-scale=1">',
-          "<title>Install Meshlink</title>",
-          "<style>",
-          "  body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a12;color:#fff;text-align:center}",
-          "  .box{padding:2rem;max-width:400px}",
-          "  h1{font-size:2rem;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}",
-          "  a{display:inline-block;margin-top:1.5rem;padding:1rem 2rem;background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;text-decoration:none;border-radius:1rem;font-weight:600}",
-          "  p{color:#888;font-size:0.9rem;line-height:1.6}",
-          "</style></head><body>",
-          '<div class="box">',
-          "  <h1>Meshlink</h1>",
-          "  <p>To install on Android:</p>",
-          "  <p>1. Tap the button below<br>2. In Chrome, tap menu &#x22EE; <br>3. Select <b>Add to Home screen</b></p>",
-          `  <a href="${serverUrl}">Open Meshlink</a>`,
-          "  <p style='margin-top:2rem;font-size:0.75rem;color:#666'>The app will be added to your home screen as a standalone app.</p>",
-          "</div>",
-          `<script>window.location.href="${serverUrl}";</script>`,
-          "</body></html>",
-        ].join("\n");
-        break;
-
-      case "ios":
-        // iOS -- same HTML approach with Safari instructions
-        fileName = "Meshlink-Install.html";
-        mimeType = "text/html";
-        content = [
-          "<!DOCTYPE html>",
-          '<html><head><meta charset="utf-8">',
-          '<meta name="viewport" content="width=device-width,initial-scale=1">',
-          "<title>Install Meshlink</title>",
-          "<style>",
-          "  body{font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a12;color:#fff;text-align:center}",
-          "  .box{padding:2rem;max-width:400px}",
-          "  h1{font-size:2rem;background:linear-gradient(135deg,#a855f7,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}",
-          "  a{display:inline-block;margin-top:1.5rem;padding:1rem 2rem;background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;text-decoration:none;border-radius:1rem;font-weight:600}",
-          "  p{color:#888;font-size:0.9rem;line-height:1.6}",
-          "</style></head><body>",
-          '<div class="box">',
-          "  <h1>Meshlink</h1>",
-          "  <p>To install on iOS:</p>",
-          "  <p>1. Tap the button below<br>2. In Safari, tap Share &#x2191;<br>3. Select <b>Add to Home Screen</b></p>",
-          `  <a href="${serverUrl}">Open Meshlink</a>`,
-          "  <p style='margin-top:2rem;font-size:0.75rem;color:#666'>The app will appear on your home screen like a native app.</p>",
-          "</div>",
-          `<script>window.location.href="${serverUrl}";</script>`,
-          "</body></html>",
-        ].join("\n");
-        break;
-
-      default:
-        return;
-    }
-
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const downloadUrls: Record<PlatformId, string> = {
+    windows: "/installers/Meshlink-Install.bat",
+    linux: "/installers/meshlink-install.sh",
+    android: "/installers/Meshlink-Android.html",
+    ios: "/installers/Meshlink-iOS.html",
   };
 
   const handlePlatformSelect = (id: PlatformId) => {
     setPlatform(id);
-    // Auto-download immediately
-    const p = platforms.find((x) => x.id === id);
-    if (p) handleDownload(p);
+    // Trigger download via direct link
+    const a = document.createElement("a");
+    a.href = downloadUrls[id];
+    a.download = platforms.find((x) => x.id === id)?.fileName || "";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const canProceedProfile = name.trim().length >= 2;
@@ -416,13 +263,14 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
 
             {/* Re-download button if already selected */}
             {platform && (
-              <button
-                onClick={() => { const p = platforms.find((x) => x.id === platform); if (p) handleDownload(p); }}
+              <a
+                href={downloadUrls[platform]}
+                download={platforms.find((p) => p.id === platform)?.fileName}
                 className="w-full flex items-center justify-center gap-2 rounded-2xl border border-accent/40 py-2.5 text-sm font-medium text-accent hover:bg-accent/10 transition-all mb-4"
               >
                 <Download className="h-4 w-4" />
                 Re-download {platforms.find((p) => p.id === platform)?.fileName}
-              </button>
+              </a>
             )}
 
             <button
