@@ -26,6 +26,7 @@ services:
   synapse:
     image: matrixdotorg/synapse:latest
     restart: unless-stopped
+    user: "991:991"
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,10 +38,11 @@ services:
       - ./synapse/log.config:/data/log.config:ro
       - ./synapse/signing.key:/data/signing.key:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8008/health || exit 1"]
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8008/health\")' || exit 1"]
       interval: 15s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 10
+      start_period: 30s
     networks:
       - meshlink
 
@@ -74,7 +76,7 @@ services:
     restart: unless-stopped
     depends_on:
       synapse:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "${HTTP_PORT:-80}:80"
     volumes:

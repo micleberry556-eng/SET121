@@ -338,6 +338,15 @@ else
     log "Signing key already exists, skipping generation."
 fi
 
+# Fix permissions: Synapse runs as UID 991 inside the container
+log "Fixing file permissions..."
+chmod 644 "$SERVER_DIR/synapse/signing.key"
+chmod 644 "$SERVER_DIR/synapse/homeserver.yaml"
+chmod 644 "$SERVER_DIR/synapse/log.config"
+
+# Fix synapse_data volume permissions
+docker run --rm -v server_synapse_data:/data alpine chown -R 991:991 /data 2>/dev/null || true
+
 # =============================================================================
 # Step 8: Start the stack
 # =============================================================================
