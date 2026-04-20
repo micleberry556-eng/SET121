@@ -66,9 +66,12 @@ interface MeshContextValue {
   sendMessage: (roomId: string, text: string) => Promise<void>;
   createDm: (userId: string) => Promise<string>;
   createGroup: (name: string, userIds: string[]) => Promise<string>;
+  createChannel: (name: string) => Promise<string>;
   joinRoom: (roomIdOrAlias: string) => Promise<string>;
   leaveRoom: (roomId: string) => Promise<void>;
+  inviteUser: (roomId: string, userId: string) => Promise<void>;
   searchUsers: (term: string) => Promise<{ userId: string; displayName: string }[]>;
+  getPublicRooms: () => Promise<MeshRoom[]>;
 }
 
 const MeshContext = createContext<MeshContextValue | null>(null);
@@ -256,6 +259,21 @@ export function MeshProvider({ session, children }: Props) {
     [],
   );
 
+  const createChannel = useCallback(
+    async (name: string): Promise<string> => {
+      const c = clientRef.current;
+      if (!c) throw new Error("Not connected");
+      const resp = await c.createRoom({
+        name,
+        preset: "public_chat" as sdk.Preset,
+        visibility: "public" as sdk.Visibility,
+        room_alias_name: name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+      });
+      return resp.room_id;
+    },
+    [],
+  );
+
   const joinRoom = useCallback(async (roomIdOrAlias: string): Promise<string> => {
     const c = clientRef.current;
     if (!c) throw new Error("Not connected");
@@ -287,6 +305,33 @@ export function MeshProvider({ session, children }: Props) {
     [],
   );
 
+  const inviteUser = useCallback(async (roomId: string, userId: string) => {
+    const c = clientRef.current;
+    if (!c) return;
+    await c.invite(roomId, userId);
+  }, []);
+
+  const getPublicRooms = useCallback(async (): Promise<MeshRoom[]> => {
+    const c = clientRef.current;
+    if (!c) return [];
+    try {
+      const resp = await c.publicRooms({ limit: 50 });
+      return (resp.chunk || []).map((r) => ({
+        id: r.room_id,
+        name: r.name || r.canonical_alias || "Unnamed",
+        avatar: getInitials(r.name || "??"),
+        avatarUrl: null,
+        type: "group" as const,
+        lastMessage: r.topic || "",
+        lastMessageTime: "",
+        unread: 0,
+        members: r.num_joined_members || 0,
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
+
   const value: MeshContextValue = {
     client: clientRef.current,
     ready,
@@ -296,9 +341,12 @@ export function MeshProvider({ session, children }: Props) {
     sendMessage,
     createDm,
     createGroup,
+    createChannel,
     joinRoom,
     leaveRoom,
+    inviteUser,
     searchUsers,
+    getPublicRooms,
   };
 
   return (
