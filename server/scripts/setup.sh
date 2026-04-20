@@ -191,6 +191,13 @@ template_file() {
         "$file"
 }
 
+# Copy originals from git before templating (allows re-running setup.sh)
+REPO_DIR="$(cd "$SERVER_DIR/.." && pwd)"
+if [ -f "$REPO_DIR/.git/HEAD" ]; then
+    log "Restoring config templates from git..."
+    git -C "$REPO_DIR" checkout -- server/synapse/homeserver.yaml server/coturn/turnserver.conf server/element/config.json 2>/dev/null || true
+fi
+
 template_file "$SERVER_DIR/synapse/homeserver.yaml"
 template_file "$SERVER_DIR/coturn/turnserver.conf"
 template_file "$SERVER_DIR/element/config.json"
@@ -315,18 +322,21 @@ log "Platform installers generated."
 # =============================================================================
 # Step 7: Generate Synapse signing key
 # =============================================================================
-log "Generating Synapse signing key..."
-docker run --rm \
-    -v "$SERVER_DIR/synapse:/data" \
-    -e SYNAPSE_SERVER_NAME="$SERVER_HOST" \
-    -e SYNAPSE_REPORT_STATS=no \
-    --entrypoint python3 \
-    matrixdotorg/synapse:latest \
-    -m synapse.app.homeserver \
-    --config-path /data/homeserver.yaml \
-    --generate-keys
-
-log "Signing key generated."
+if [ ! -f "$SERVER_DIR/synapse/signing.key" ]; then
+    log "Generating Synapse signing key..."
+    docker run --rm \
+        -v "$SERVER_DIR/synapse:/data" \
+        -e SYNAPSE_SERVER_NAME="$SERVER_HOST" \
+        -e SYNAPSE_REPORT_STATS=no \
+        --entrypoint python3 \
+        matrixdotorg/synapse:latest \
+        -m synapse.app.homeserver \
+        --config-path /data/homeserver.yaml \
+        --generate-keys
+    log "Signing key generated."
+else
+    log "Signing key already exists, skipping generation."
+fi
 
 # =============================================================================
 # Step 8: Start the stack

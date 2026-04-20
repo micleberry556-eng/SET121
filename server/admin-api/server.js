@@ -15,8 +15,8 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const ENV_PATH = path.resolve(__dirname, "../.env");
-const COMPOSE_DIR = path.resolve(__dirname, "..");
+const ENV_PATH = path.resolve(__dirname, ".env");
+const COMPOSE_DIR = path.resolve(__dirname);
 
 // --- Auth middleware (basic token from .env REGISTRATION_SHARED_SECRET) ---
 function loadEnv() {

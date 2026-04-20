@@ -35,8 +35,9 @@ services:
       - synapse_data:/data
       - ./synapse/homeserver.yaml:/data/homeserver.yaml:ro
       - ./synapse/log.config:/data/log.config:ro
+      - ./synapse/signing.key:/data/signing.key:ro
     healthcheck:
-      test: ["CMD", "curl", "-fSs", "http://localhost:8008/health"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8008/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -95,6 +96,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./.env:/app/.env:rw
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       ADMIN_API_PORT: "9090"

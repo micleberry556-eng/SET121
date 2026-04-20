@@ -460,7 +460,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
               )}
 
               <button
-                onClick={() => setStep("done")}
+                onClick={() => { setStep("done"); handleFinish(); }}
                 disabled={!canProceedProfile || registering}
                 className={`w-full rounded-2xl py-3.5 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                   canProceedProfile && !registering ? "gradient-primary text-primary-foreground shadow-glow hover:scale-[1.02]" : "bg-secondary text-muted-foreground cursor-not-allowed"
@@ -518,9 +518,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
                   <h2 className="text-2xl font-semibold text-foreground mb-2">Welcome, {name.trim() || "Anonymous"}!</h2>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto">Your encrypted identity has been generated. You're ready to start messaging.</p>
                 </div>
-                <button onClick={handleFinish} disabled={registering} className="w-full max-w-xs rounded-2xl py-3.5 text-sm font-semibold gradient-primary text-primary-foreground shadow-glow hover:scale-[1.02] transition-all">
-                  Enter Meshlink
-                </button>
+                <p className="text-[11px] font-mono text-muted-foreground">Redirecting to Meshlink...</p>
               </>
             )}
           </div>
