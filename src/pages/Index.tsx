@@ -72,19 +72,17 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
   }, [mesh]);
 
   const handleCreateChat = useCallback(async (chat: Chat) => {
-    // Create a new room on the server
     try {
       let roomId: string;
       if (chat.type === "dm") {
-        // For DM, we need a user ID. The chat.name might be a username.
-        // Try to search for the user first
         const users = await mesh.searchUsers(chat.name);
         if (users.length > 0) {
           roomId = await mesh.createDm(users[0].userId);
         } else {
-          // Try as a direct user ID
           roomId = await mesh.createDm(chat.name);
         }
+      } else if (chat.type === "channel") {
+        roomId = await mesh.createChannel(chat.name);
       } else {
         roomId = await mesh.createGroup(chat.name, []);
       }
