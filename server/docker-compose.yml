@@ -85,7 +85,7 @@ services:
 
   # --- Synapse Admin (web-based admin panel) ---
   synapse-admin:
-    image: awesometechnologies/synapse-admin:latest
+    image: ghcr.io/etkecc/synapse-admin:latest
     restart: unless-stopped
     networks:
       - meshlink
