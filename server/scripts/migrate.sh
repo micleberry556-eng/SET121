@@ -178,7 +178,7 @@ do_restore() {
     log "Waiting for Synapse..."
     RETRIES=30
     while [ $RETRIES -gt 0 ]; do
-        if docker compose exec -T synapse curl -fsSo /dev/null http://localhost:8008/health 2>/dev/null; then
+        if docker compose exec -T synapse wget -qO /dev/null http://localhost:8008/health 2>/dev/null; then
             break
         fi
         RETRIES=$((RETRIES - 1))

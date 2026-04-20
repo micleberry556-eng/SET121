@@ -57,7 +57,7 @@ docker compose up -d --remove-orphans
 log "Waiting for Synapse to become healthy..."
 RETRIES=30
 while [ $RETRIES -gt 0 ]; do
-    if docker compose exec -T synapse curl -fsSo /dev/null http://localhost:8008/health 2>/dev/null; then
+    if docker compose exec -T synapse wget -qO /dev/null http://localhost:8008/health 2>/dev/null; then
         break
     fi
     RETRIES=$((RETRIES - 1))

@@ -17,6 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const ENV_PATH = path.resolve(__dirname, ".env");
 const COMPOSE_DIR = path.resolve(__dirname);
+const COMPOSE_PROJECT = "server"; // Must match the directory name where docker compose up was run
 
 // --- Auth middleware (basic token from .env REGISTRATION_SHARED_SECRET) ---
 function loadEnv() {
@@ -126,7 +127,7 @@ app.patch("/api/config", authMiddleware, (req, res) => {
 // POST /api/restart - Restart all services
 app.post("/api/restart", authMiddleware, (req, res) => {
   try {
-    execSync(`cd ${COMPOSE_DIR} && docker compose restart`, {
+    execSync(`docker compose -p ${COMPOSE_PROJECT} restart`, {
       timeout: 120000,
     });
     res.json({ message: "All services restarted." });
@@ -138,7 +139,7 @@ app.post("/api/restart", authMiddleware, (req, res) => {
 // GET /api/status - Service health status
 app.get("/api/status", authMiddleware, (req, res) => {
   try {
-    const output = execSync(`cd ${COMPOSE_DIR} && docker compose ps --format json`, {
+    const output = execSync(`docker compose -p ${COMPOSE_PROJECT} ps --format json`, {
       timeout: 15000,
     }).toString();
     const services = output
