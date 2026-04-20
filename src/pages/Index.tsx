@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatView } from "@/components/ChatView";
 import { EmptyChat } from "@/components/EmptyChat";
@@ -6,32 +6,10 @@ import { AccountSettings } from "@/components/AccountSettings";
 import { CallScreen, CallType } from "@/components/CallScreen";
 import { GroupSettingsDialog } from "@/components/GroupSettingsDialog";
 import {
-  chats as initialChats, contacts, defaultProfile,
+  contacts as defaultContacts, defaultProfile,
   Chat, Message, MediaAttachment, Story, StoryItem, UserProfile, Topic,
 } from "@/data/mockData";
-
-const initialStories: Story[] = [
-  {
-    id: "s1",
-    userId: "alice",
-    userName: "Alice Nakamoto",
-    avatar: "AN",
-    items: [
-      { id: "si1", type: "image", url: "https://picsum.photos/seed/mesh1/800/1200", caption: "New relay node deployed", timestamp: "2h ago" },
-    ],
-    viewed: false,
-  },
-  {
-    id: "s2",
-    userId: "bob",
-    userName: "Bob Chen",
-    avatar: "BC",
-    items: [
-      { id: "si2", type: "image", url: "https://picsum.photos/seed/mesh2/800/1200", caption: "QUIC upgrade testing", timestamp: "4h ago" },
-    ],
-    viewed: true,
-  },
-];
+import { useMatrix, type MeshRoom, type MeshMessage } from "@/lib/MatrixProvider";
 
 interface IndexProps {
   initialProfile?: UserProfile;
@@ -39,9 +17,34 @@ interface IndexProps {
   onLogout?: () => void;
 }
 
+/** Convert Matrix rooms to the Chat[] format the existing UI expects. */
+function meshRoomToChat(room: MeshRoom, messages: MeshMessage[]): Chat {
+  return {
+    id: room.id,
+    name: room.name,
+    avatar: room.avatar,
+    avatarUrl: room.avatarUrl,
+    type: room.type,
+    online: false,
+    lastMessage: room.lastMessage,
+    lastMessageTime: room.lastMessageTime,
+    unread: room.unread,
+    pinned: false,
+    members: room.members,
+    messages: messages.map((m) => ({
+      id: m.id,
+      senderId: m.isOwn ? "me" : m.senderId,
+      text: m.text,
+      timestamp: m.timestamp,
+      read: true,
+    })),
+  };
+}
+
 const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) => {
-  const [chatList, setChatList] = useState<Chat[]>(initialChats);
-  const [stories, setStories] = useState<Story[]>(initialStories);
+  const matrix = useMatrix();
+
+  const [stories] = useState<Story[]>([]);
   const [profile, setProfile] = useState<UserProfile>(initialProfile || defaultProfile);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -50,73 +53,50 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
   const [callType, setCallType] = useState<CallType>("audio");
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
 
+  // Build chat list from Matrix rooms
+  const chatList: Chat[] = matrix.rooms.map((room) => {
+    const messages = matrix.getMessages(room.id);
+    return meshRoomToChat(room, messages);
+  });
+
   const selectedChat = chatList.find((c) => c.id === selectedChatId) ?? null;
 
   const handleSelectChat = (id: string) => {
     setSelectedChatId(id);
-    setChatList((prev) =>
-      prev.map((chat) =>
-        chat.id === id
-          ? { ...chat, unread: 0, messages: chat.messages.map((m) => ({ ...m, read: true })) }
-          : chat,
-      ),
-    );
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
-  const handleSendMessage = (chatId: string, text: string, media?: MediaAttachment[], topicId?: string | null) => {
-    const newMessage: Message = {
-      id: `msg-${Date.now()}`,
-      senderId: "me",
-      text,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      read: false,
-      media,
-      topicId: topicId ?? undefined,
-    };
-    const lastMsg = media && media.length > 0 && !text
-      ? `[${media[0].type === "image" ? "Photo" : media[0].type === "video" ? "Video" : "Audio"}]`
-      : text;
-    setChatList((prev) =>
-      prev.map((chat) => {
-        if (chat.id !== chatId) return chat;
-        // Update topic messageCount if applicable
-        const updatedTopics = topicId && chat.topics
-          ? chat.topics.map((t) =>
-              t.id === topicId
-                ? { ...t, messageCount: t.messageCount + 1, lastMessage: lastMsg, lastMessageTime: "now" }
-                : t,
-            )
-          : chat.topics;
-        return {
-          ...chat,
-          messages: [...chat.messages, newMessage],
-          lastMessage: lastMsg,
-          lastMessageTime: "now",
-          topics: updatedTopics,
-        };
-      }),
-    );
-  };
+  const handleSendMessage = useCallback(async (chatId: string, text: string, _media?: MediaAttachment[], _topicId?: string | null) => {
+    if (!text.trim()) return;
+    await matrix.sendMessage(chatId, text.trim());
+  }, [matrix]);
 
-  const handleCreateChat = (chat: Chat) => {
-    setChatList((prev) => [chat, ...prev]);
-    setSelectedChatId(chat.id);
-    if (window.innerWidth < 768) setSidebarOpen(false);
-  };
-
-  const handleAddStory = (items: StoryItem[]) => {
-    const existing = stories.find((s) => s.userId === "me");
-    if (existing) {
-      setStories((prev) =>
-        prev.map((s) => s.userId === "me" ? { ...s, items: [...s.items, ...items] } : s),
-      );
-    } else {
-      setStories((prev) => [
-        { id: `story-${Date.now()}`, userId: "me", userName: profile.name, avatar: profile.avatarInitials, items, viewed: true },
-        ...prev,
-      ]);
+  const handleCreateChat = useCallback(async (chat: Chat) => {
+    // Create a new room on the Matrix server
+    try {
+      let roomId: string;
+      if (chat.type === "dm") {
+        // For DM, we need a user ID. The chat.name might be a username.
+        // Try to search for the user first
+        const users = await matrix.searchUsers(chat.name);
+        if (users.length > 0) {
+          roomId = await matrix.createDm(users[0].userId);
+        } else {
+          // Try as a direct user ID
+          roomId = await matrix.createDm(chat.name);
+        }
+      } else {
+        roomId = await matrix.createGroup(chat.name, []);
+      }
+      setSelectedChatId(roomId);
+      if (window.innerWidth < 768) setSidebarOpen(false);
+    } catch (err) {
+      console.error("Failed to create chat:", err);
     }
+  }, [matrix]);
+
+  const handleAddStory = (_items: StoryItem[]) => {
+    // Stories not yet implemented with Matrix
   };
 
   const handleUpdateProfile = (updated: UserProfile) => {
@@ -129,40 +109,28 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
     setCallOpen(true);
   };
 
-  const handleCreateTopic = (chatId: string, name: string, icon: string) => {
-    const newTopic: Topic = {
-      id: `topic-${Date.now()}`,
-      name,
-      icon,
-      messageCount: 0,
-      lastMessage: "Topic created",
-      lastMessageTime: "now",
-    };
-    setChatList((prev) =>
-      prev.map((c) =>
-        c.id === chatId ? { ...c, topics: [...(c.topics || []), newTopic] } : c,
-      ),
-    );
+  const handleUpdateChat = (_updated: Chat) => {
+    // Room updates handled by Matrix sync
   };
 
-  const handleDeleteTopic = (chatId: string, topicId: string) => {
-    setChatList((prev) =>
-      prev.map((c) =>
-        c.id === chatId ? { ...c, topics: (c.topics || []).filter((t) => t.id !== topicId) } : c,
-      ),
-    );
-  };
-
-  const handleUpdateChat = (updated: Chat) => {
-    setChatList((prev) => prev.map((c) => c.id === updated.id ? updated : c));
-  };
-
-  const handleDeleteChat = (chatId: string) => {
-    setChatList((prev) => prev.filter((c) => c.id !== chatId));
+  const handleDeleteChat = useCallback(async (chatId: string) => {
+    await matrix.leaveRoom(chatId);
     if (selectedChatId === chatId) setSelectedChatId(null);
-  };
+  }, [matrix, selectedChatId]);
 
   const handleBack = () => setSidebarOpen(true);
+
+  // Show loading while Matrix syncs
+  if (!matrix.ready) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl gradient-primary animate-pulse" />
+          <p className="text-sm text-muted-foreground">Connecting to Meshlink...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -185,8 +153,6 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
             onSendMessage={handleSendMessage}
             onBack={handleBack}
             onCall={selectedChat.type !== "channel" ? handleCall : undefined}
-            onCreateTopic={selectedChat.type === "group" ? handleCreateTopic : undefined}
-            onDeleteTopic={selectedChat.type === "group" ? handleDeleteTopic : undefined}
             onSettingsClick={
               selectedChat.type === "group" || selectedChat.type === "channel"
                 ? () => setGroupSettingsOpen(true)
@@ -202,7 +168,7 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
         <GroupSettingsDialog
           open={groupSettingsOpen}
           chat={selectedChat}
-          contacts={contacts}
+          contacts={defaultContacts}
           onClose={() => setGroupSettingsOpen(false)}
           onUpdateChat={handleUpdateChat}
           onDeleteChat={handleDeleteChat}
