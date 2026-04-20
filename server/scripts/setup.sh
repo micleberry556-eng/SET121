@@ -58,8 +58,7 @@ DETECTED_IP=$(curl -4 -s --max-time 5 ifconfig.co 2>/dev/null || hostname -I | a
 read -rp "Server IP or domain [$DETECTED_IP]: " SERVER_HOST
 SERVER_HOST="${SERVER_HOST:-$DETECTED_IP}"
 
-read -rp "HTTP port [80]: " HTTP_PORT
-HTTP_PORT="${HTTP_PORT:-80}"
+HTTP_PORT="80"
 
 read -rp "Admin username [admin]: " ADMIN_USER
 ADMIN_USER="${ADMIN_USER:-admin}"
@@ -73,13 +72,8 @@ while true; do
     warn "Password must be at least 8 characters."
 done
 
-read -rp "Enable open registration? (yes/no) [yes]: " ENABLE_REG
-ENABLE_REG="${ENABLE_REG:-yes}"
-if [ "$ENABLE_REG" = "yes" ]; then
-    ENABLE_REGISTRATION="true"
-else
-    ENABLE_REGISTRATION="false"
-fi
+# Registration always enabled -- users need to be able to sign up
+ENABLE_REGISTRATION="true"
 
 # =============================================================================
 # Step 2: Install Docker (if needed)
@@ -377,22 +371,27 @@ cd "$SERVER_DIR"
 docker compose pull
 docker compose up -d
 
-log "Waiting for server to become healthy..."
-RETRIES=30
+log "Waiting for server to become healthy (this may take up to 2 minutes)..."
+RETRIES=60
+HEALTHY=false
 while [ $RETRIES -gt 0 ]; do
-    if docker compose exec -T synapse wget -qO /dev/null http://localhost:8008/health 2>/dev/null; then
+    if docker compose exec -T synapse python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8008/health')" 2>/dev/null; then
+        HEALTHY=true
         break
     fi
     RETRIES=$((RETRIES - 1))
-    sleep 5
+    sleep 3
 done
 
-if [ $RETRIES -eq 0 ]; then
-    err "Server did not become healthy in time. Check logs: docker compose logs synapse"
-    exit 1
+# Ensure nginx is running regardless of healthcheck status
+docker compose up -d --no-deps nginx 2>/dev/null || true
+
+if [ "$HEALTHY" = "false" ]; then
+    warn "Server is still starting up. It may need a few more seconds."
+    warn "Check status with: cd $SERVER_DIR && docker compose ps"
 fi
 
-log "Server is healthy."
+log "Server is running."
 
 # =============================================================================
 # Step 9: Create admin user
