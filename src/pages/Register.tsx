@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { languages, platforms, PlatformId } from "@/data/languages";
 import { UserProfile } from "@/data/mockData";
-import { matrixRegister, storeSession, checkHomeserver } from "@/lib/matrix";
+import { registerAccount, checkServer, MeshlinkSession } from "@/lib/matrixClient";
 
 interface RegisterPageProps {
   onComplete: (profile: UserProfile, language: string, platform: PlatformId | null) => void;
@@ -90,7 +90,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
 
   // Check if Matrix homeserver is reachable on mount
   useEffect(() => {
-    checkHomeserver().then(setServerOnline);
+    checkServer().then(setServerOnline);
   }, []);
 
   const handleFinish = async () => {
@@ -103,8 +103,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
 
     try {
       // Register on the Matrix homeserver
-      const session = await matrixRegister(finalUsername, password, finalName);
-      storeSession(session);
+      const session: MeshlinkSession = await registerAccount(finalUsername, password, finalName);
 
       const profile: UserProfile = {
         name: finalName,
@@ -112,7 +111,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
         bio: "",
         avatarUrl,
         avatarInitials: initials,
-        peerId: session.user_id,
+        peerId: session.userId,
         privacy: {
           lastSeen: "everyone",
           profilePhoto: "everyone",

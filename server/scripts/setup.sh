@@ -348,7 +348,29 @@ chmod 644 "$SERVER_DIR/synapse/log.config"
 docker run --rm -v server_synapse_data:/data alpine chown -R 991:991 /data 2>/dev/null || true
 
 # =============================================================================
-# Step 8: Start the stack
+# Step 8: Build Meshlink UI
+# =============================================================================
+log "Building Meshlink UI..."
+REPO_DIR="$(cd "$SERVER_DIR/.." && pwd)"
+
+# Install Node.js if not available
+if ! command -v node &>/dev/null; then
+    log "Installing Node.js..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y -qq nodejs
+fi
+
+cd "$REPO_DIR"
+npm install --production=false 2>/dev/null || npm install
+npm run build
+
+# Copy built files to nginx serving directory
+mkdir -p "$SERVER_DIR/nginx/www/meshlink"
+cp -r "$REPO_DIR/dist/"* "$SERVER_DIR/nginx/www/meshlink/"
+log "Meshlink UI built and deployed."
+
+# =============================================================================
+# Step 9: Start the stack
 # =============================================================================
 log "Starting Meshlink server stack..."
 cd "$SERVER_DIR"
