@@ -87,25 +87,31 @@ export async function registerAccount(
       homeserverUrl,
     };
   } catch (err: unknown) {
-    const error = err as { data?: { session?: string }; httpStatus?: number };
+    const error = err as { data?: { session?: string; error?: string; errcode?: string }; httpStatus?: number };
     if (error.httpStatus === 401 && error.data?.session) {
-      const resp = await client.registerRequest({
-        username,
-        password,
-        initial_device_display_name: "Meshlink",
-        auth: {
-          type: "m.login.dummy",
-          session: error.data.session,
-        },
-      });
-      session = {
-        userId: resp.user_id,
-        accessToken: resp.access_token!,
-        deviceId: resp.device_id!,
-        homeserverUrl,
-      };
+      try {
+        const resp = await client.registerRequest({
+          username,
+          password,
+          initial_device_display_name: "Meshlink",
+          auth: {
+            type: "m.login.dummy",
+            session: error.data.session,
+          },
+        });
+        session = {
+          userId: resp.user_id,
+          accessToken: resp.access_token!,
+          deviceId: resp.device_id!,
+          homeserverUrl,
+        };
+      } catch (err2: unknown) {
+        const error2 = err2 as { data?: { error?: string; errcode?: string }; httpStatus?: number };
+        const message = error2?.data?.error || "Registration failed. Please try again.";
+        throw new Error(message);
+      }
     } else {
-      const message = (err as { data?: { error?: string } })?.data?.error || "Registration failed";
+      const message = error?.data?.error || "Registration failed. Check your connection.";
       throw new Error(message);
     }
   }

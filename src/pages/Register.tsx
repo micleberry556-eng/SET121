@@ -179,7 +179,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
     }
   };
 
-  const canProceedProfile = name.trim().length >= 2;
+  const canProceedProfile = name.trim().length >= 2 && password.length >= 6;
 
   const detectedPlatformInfo = platform ? platforms.find((p) => p.id === platform) : null;
 
@@ -435,7 +435,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
                 <label className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground mb-1.5 block">Password</label>
                 <div className="flex items-center gap-3 rounded-2xl glass border border-border/50 px-4 py-3 focus-within:border-primary/50 focus-within:shadow-glow transition-all">
                   <Lock className="h-4 w-4 text-muted-foreground" />
-                  <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create a password" className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none" />
+                  <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create a password (min 6 chars)" className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none" />
                   <button onClick={() => setShowPassword((s) => !s)} className="text-muted-foreground hover:text-primary transition-colors">
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
