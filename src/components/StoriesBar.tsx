@@ -19,10 +19,10 @@ export function StoriesBar({ stories, onAddStory }: StoriesBarProps) {
           className="flex flex-col items-center gap-1 flex-shrink-0"
         >
           <div className="relative">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full gradient-primary text-xs font-bold text-primary-foreground shadow-glow">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl gradient-primary text-xs font-bold text-primary-foreground shadow-glow">
               ME
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent border-2 border-card">
+            <div className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-md bg-accent border-2 border-card">
               <Plus className="h-3 w-3 text-accent-foreground" />
             </div>
           </div>
@@ -36,8 +36,8 @@ export function StoriesBar({ stories, onAddStory }: StoriesBarProps) {
             onClick={() => setViewingStory(story)}
             className="flex flex-col items-center gap-1 flex-shrink-0"
           >
-            <div className={`p-0.5 rounded-full ${story.viewed ? "bg-muted" : "gradient-primary"}`}>
-              <div className="flex h-[52px] w-[52px] items-center justify-center rounded-full bg-card text-xs font-bold text-foreground border-2 border-card">
+            <div className={`p-0.5 rounded-xl ${story.viewed ? "bg-muted" : "gradient-primary"}`}>
+              <div className="flex h-[52px] w-[52px] items-center justify-center rounded-[10px] bg-card text-xs font-bold text-foreground border-2 border-card">
                 {story.avatar}
               </div>
             </div>
