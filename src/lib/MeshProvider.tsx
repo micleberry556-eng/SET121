@@ -22,6 +22,8 @@ import {
   stopClient,
   getUserDisplayName,
   getInitials,
+  uploadMedia,
+  mxcToUrl,
   type MeshlinkSession,
   type MeshClient,
   type MeshRoom as SdkRoom,
@@ -51,6 +53,9 @@ export interface MeshMessage {
   text: string;
   timestamp: string;
   isOwn: boolean;
+  mediaUrl?: string;
+  mediaType?: "image" | "video" | "audio";
+  mediaName?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -64,6 +69,7 @@ interface MeshContextValue {
   rooms: MeshRoom[];
   getMessages: (roomId: string) => MeshMessage[];
   sendMessage: (roomId: string, text: string) => Promise<void>;
+  sendMedia: (roomId: string, file: File) => Promise<void>;
   createDm: (userId: string) => Promise<string>;
   createGroup: (name: string, userIds: string[]) => Promise<string>;
   createChannel: (name: string) => Promise<string>;
@@ -130,13 +136,44 @@ function eventToMesh(evt: MeshEvent, client: MeshClient): MeshMessage | null {
   if (evt.getType() !== "m.room.message") return null;
   const content = evt.getContent();
   const senderId = evt.getSender()!;
+  const msgtype = content.msgtype as string;
+
+  let text = typeof content.body === "string" ? content.body : "";
+  let mediaUrl: string | undefined;
+  let mediaType: "image" | "video" | "audio" | undefined;
+  let mediaName: string | undefined;
+
+  if (msgtype === "m.image" && content.url) {
+    mediaUrl = mxcToUrl(content.url as string);
+    mediaType = "image";
+    mediaName = text;
+    text = "";
+  } else if (msgtype === "m.video" && content.url) {
+    mediaUrl = mxcToUrl(content.url as string);
+    mediaType = "video";
+    mediaName = text;
+    text = "";
+  } else if (msgtype === "m.audio" && content.url) {
+    mediaUrl = mxcToUrl(content.url as string);
+    mediaType = "audio";
+    mediaName = text;
+    text = "";
+  } else if (msgtype === "m.file" && content.url) {
+    mediaUrl = mxcToUrl(content.url as string);
+    mediaName = text;
+    text = "";
+  }
+
   return {
     id: evt.getId()!,
     senderId,
     senderName: getUserDisplayName(client, senderId),
-    text: typeof content.body === "string" ? content.body : "",
+    text,
     timestamp: formatTime(evt.getTs()),
     isOwn: senderId === client.getUserId(),
+    mediaUrl,
+    mediaType,
+    mediaName,
   };
 }
 
@@ -233,6 +270,31 @@ export function MeshProvider({ session, children }: Props) {
     if (!c) return;
     await c.sendTextMessage(roomId, text);
   }, []);
+
+  const sendMedia = useCallback(async (roomId: string, file: File) => {
+    const c = clientRef.current;
+    if (!c) return;
+
+    // Upload file to server
+    const mxcUri = await uploadMedia(session.accessToken, file);
+
+    // Determine message type
+    let msgtype = "m.file";
+    if (file.type.startsWith("image/")) msgtype = "m.image";
+    else if (file.type.startsWith("video/")) msgtype = "m.video";
+    else if (file.type.startsWith("audio/")) msgtype = "m.audio";
+
+    // Send media message
+    await c.sendMessage(roomId, {
+      msgtype,
+      body: file.name,
+      url: mxcUri,
+      info: {
+        mimetype: file.type,
+        size: file.size,
+      },
+    });
+  }, [session.accessToken]);
 
   const createDm = useCallback(async (targetUserId: string): Promise<string> => {
     const c = clientRef.current;
@@ -345,6 +407,7 @@ export function MeshProvider({ session, children }: Props) {
     rooms,
     getMessages,
     sendMessage,
+    sendMedia,
     createDm,
     createGroup,
     createChannel,

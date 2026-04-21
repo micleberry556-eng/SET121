@@ -38,6 +38,14 @@ function meshRoomToChat(room: MeshRoom, messages: MeshMessage[]): Chat {
       text: m.text,
       timestamp: m.timestamp,
       read: true,
+      media: m.mediaUrl ? [{
+        id: m.id + "-media",
+        type: m.mediaType || "image",
+        name: m.mediaName || "file",
+        url: m.mediaUrl,
+        size: 0,
+        mimeType: m.mediaType === "video" ? "video/mp4" : m.mediaType === "audio" ? "audio/mpeg" : "image/jpeg",
+      }] : undefined,
     })),
   };
 }
@@ -45,7 +53,7 @@ function meshRoomToChat(room: MeshRoom, messages: MeshMessage[]): Chat {
 const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) => {
   const mesh = useMesh();
 
-  const [stories] = useState<Story[]>([]);
+  const [stories, setStories] = useState<Story[]>([]);
   const [profile, setProfile] = useState<UserProfile>(initialProfile || defaultProfile);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -71,9 +79,25 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
-  const handleSendMessage = useCallback(async (chatId: string, text: string, _media?: MediaAttachment[], _topicId?: string | null) => {
-    if (!text.trim()) return;
-    await mesh.sendMessage(chatId, text.trim());
+  const handleSendMessage = useCallback(async (chatId: string, text: string, media?: MediaAttachment[], _topicId?: string | null) => {
+    // Send media files first
+    if (media && media.length > 0) {
+      for (const attachment of media) {
+        try {
+          // Convert blob URL back to File
+          const resp = await fetch(attachment.url);
+          const blob = await resp.blob();
+          const file = new File([blob], attachment.name, { type: attachment.mimeType });
+          await mesh.sendMedia(chatId, file);
+        } catch (err) {
+          console.error("Failed to send media:", err);
+        }
+      }
+    }
+    // Send text if any
+    if (text.trim()) {
+      await mesh.sendMessage(chatId, text.trim());
+    }
   }, [mesh]);
 
   const handleCreateChat = useCallback(async (chat: Chat) => {
@@ -98,8 +122,18 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
     }
   }, [mesh]);
 
-  const handleAddStory = (_items: StoryItem[]) => {
-    // Stories not yet implemented
+  const handleAddStory = (items: StoryItem[]) => {
+    const existing = stories.find((s) => s.userId === "me");
+    if (existing) {
+      setStories((prev) =>
+        prev.map((s) => s.userId === "me" ? { ...s, items: [...s.items, ...items] } : s),
+      );
+    } else {
+      setStories((prev) => [
+        { id: `story-${Date.now()}`, userId: "me", userName: profile.name, avatar: profile.avatarInitials, items, viewed: true },
+        ...prev,
+      ]);
+    }
   };
 
   const handleUpdateProfile = (updated: UserProfile) => {

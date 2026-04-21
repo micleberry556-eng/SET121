@@ -249,3 +249,43 @@ export async function checkServer(): Promise<boolean> {
     return false;
   }
 }
+
+/** Upload a file to the server. Returns the mxc:// URI. */
+export async function uploadMedia(
+  accessToken: string,
+  file: File,
+): Promise<string> {
+  const resp = await fetch(`${getServerUrl()}/_matrix/media/v3/upload?filename=${encodeURIComponent(file.name)}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: file,
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Upload failed (${resp.status})`);
+  }
+
+  const data = await resp.json();
+  return (data as { content_uri: string }).content_uri;
+}
+
+/** Convert an mxc:// URI to an HTTP URL for display. */
+export function mxcToUrl(mxcUri: string): string {
+  if (!mxcUri || !mxcUri.startsWith("mxc://")) return mxcUri;
+  // mxc://server/mediaId -> /_matrix/media/v3/download/server/mediaId
+  const parts = mxcUri.replace("mxc://", "").split("/");
+  if (parts.length < 2) return mxcUri;
+  return `${getServerUrl()}/_matrix/media/v3/download/${parts[0]}/${parts[1]}`;
+}
+
+/** Convert an mxc:// URI to a thumbnail URL. */
+export function mxcToThumbnail(mxcUri: string, width = 320, height = 240): string {
+  if (!mxcUri || !mxcUri.startsWith("mxc://")) return mxcUri;
+  const parts = mxcUri.replace("mxc://", "").split("/");
+  if (parts.length < 2) return mxcUri;
+  return `${getServerUrl()}/_matrix/media/v3/thumbnail/${parts[0]}/${parts[1]}?width=${width}&height=${height}&method=scale`;
+}
