@@ -60,16 +60,21 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
       messages: messages.map((m) => ({
         id: m.id,
         senderId: m.isOwn ? "me" : m.senderId,
+        senderName: m.senderName,
         text: m.text,
         timestamp: m.timestamp,
         read: true,
         media: m.mediaUrl ? [{
           id: m.id + "-media",
-          type: m.mediaType || "image" as const,
+          type: (m.mediaType === "file" ? "image" : m.mediaType || "image") as "image" | "video" | "audio",
           name: m.mediaName || "file",
           url: m.mediaUrl,
-          size: 0,
-          mimeType: m.mediaType === "video" ? "video/mp4" : m.mediaType === "audio" ? "audio/mpeg" : "image/jpeg",
+          size: m.mediaSize || 0,
+          mimeType: m.mediaType === "video" ? "video/mp4"
+            : m.mediaType === "audio" ? "audio/mpeg"
+            : m.mediaType === "file" ? "application/octet-stream"
+            : "image/jpeg",
+          isFile: m.mediaType === "file",
         }] : undefined,
       })),
     };
@@ -114,7 +119,9 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
       } else if (chat.type === "channel") {
         roomId = await mesh.createChannel(chat.name);
       } else {
-        roomId = await mesh.createGroup(chat.name, []);
+        // Extract real user IDs from memberIds (filter out "me" placeholder)
+        const memberUserIds = (chat.memberIds || []).filter((id) => id !== "me");
+        roomId = await mesh.createGroup(chat.name, memberUserIds);
       }
       setSelectedChatId(roomId);
       if (window.innerWidth < 768) setSidebarOpen(false);
@@ -248,6 +255,7 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
           onOpenSettings={() => setSettingsOpen(true)}
           onFoldersChange={setFolders}
           onSearch={handleSearch}
+          onSearchUsers={mesh.searchUsers}
           onStartDm={handleStartDm}
           onJoinRoom={handleJoinRoom}
         />

@@ -32,7 +32,7 @@ log_config: /data/log.config
 
 # --- Media storage ---
 media_store_path: /data/media_store
-max_upload_size: 50M
+max_upload_size: 100M
 enable_authenticated_media: false
 url_preview_enabled: true
 url_preview_ip_range_blacklist:
@@ -78,6 +78,12 @@ rc_login:
   account:
     per_second: 1
     burst_count: 5
+
+# --- User directory (allow all users to find each other) ---
+user_directory:
+  enabled: true
+  search_all_users: true
+  prefer_local_users: true
 
 # --- Presence ---
 presence:

@@ -5,11 +5,13 @@ export interface MediaAttachment {
   url: string;       // blob URL or data URL
   size: number;       // bytes
   mimeType: string;
+  isFile?: boolean;   // true for generic file attachments (PDFs, docs, etc.)
 }
 
 export interface Message {
   id: string;
   senderId: string;
+  senderName?: string;
   text: string;
   timestamp: string;
   read: boolean;
