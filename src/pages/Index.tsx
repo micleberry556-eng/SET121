@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatView } from "@/components/ChatView";
 import { EmptyChat } from "@/components/EmptyChat";
 import { AccountSettings } from "@/components/AccountSettings";
 import { CallScreen, CallType } from "@/components/CallScreen";
 import { GroupSettingsDialog } from "@/components/GroupSettingsDialog";
+import { DmSettingsDialog } from "@/components/DmSettingsDialog";
 import {
   contacts as defaultContacts, defaultProfile,
-  Chat, Message, MediaAttachment, Story, StoryItem, UserProfile, Topic,
+  Chat, Message, MediaAttachment, Story, StoryItem, UserProfile, Topic, ChatFolder,
 } from "@/data/mockData";
 import { useMesh, type MeshRoom, type MeshMessage } from "@/lib/MeshProvider";
 
@@ -52,6 +53,10 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
   const [callOpen, setCallOpen] = useState(false);
   const [callType, setCallType] = useState<CallType>("audio");
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [dmSettingsOpen, setDmSettingsOpen] = useState(false);
+  const [folders, setFolders] = useState<ChatFolder[]>([
+    { id: "fav-default", name: "Favorites", chatIds: [] },
+  ]);
 
   // Build chat list from server rooms
   const chatList: Chat[] = mesh.rooms.map((room) => {
@@ -116,6 +121,14 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
     if (selectedChatId === chatId) setSelectedChatId(null);
   }, [mesh, selectedChatId]);
 
+  const handleBlockUser = (chatId: string) => {
+    // Block handled locally for now
+    const chat = chatList.find((c) => c.id === chatId);
+    if (chat) {
+      console.log(`Blocked user in chat: ${chat.name}`);
+    }
+  };
+
   const handleBack = () => setSidebarOpen(true);
 
   // Show loading while connecting
@@ -137,11 +150,13 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
           chats={chatList}
           stories={stories}
           profile={profile}
+          folders={folders}
           selectedChatId={selectedChatId}
           onSelectChat={handleSelectChat}
           onCreateChat={handleCreateChat}
           onAddStory={handleAddStory}
           onOpenSettings={() => setSettingsOpen(true)}
+          onFoldersChange={setFolders}
         />
       </div>
       <div className={`${!sidebarOpen ? "flex" : "hidden"} md:flex flex-1 min-w-0`}>
@@ -156,6 +171,9 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
                 ? () => setGroupSettingsOpen(true)
                 : undefined
             }
+            onDmSettingsClick={
+              selectedChat.type === "dm" ? () => setDmSettingsOpen(true) : undefined
+            }
           />
         ) : (
           <EmptyChat />
@@ -167,9 +185,24 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
           open={groupSettingsOpen}
           chat={selectedChat}
           contacts={defaultContacts}
+          folders={folders}
           onClose={() => setGroupSettingsOpen(false)}
           onUpdateChat={handleUpdateChat}
           onDeleteChat={handleDeleteChat}
+          onFoldersChange={setFolders}
+        />
+      )}
+
+      {selectedChat && selectedChat.type === "dm" && (
+        <DmSettingsDialog
+          open={dmSettingsOpen}
+          chat={selectedChat}
+          folders={folders}
+          onClose={() => setDmSettingsOpen(false)}
+          onUpdateChat={handleUpdateChat}
+          onDeleteChat={handleDeleteChat}
+          onFoldersChange={setFolders}
+          onBlockUser={handleBlockUser}
         />
       )}
 

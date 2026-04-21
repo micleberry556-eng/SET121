@@ -44,6 +44,12 @@ export interface Chat {
   messages: Message[];
 }
 
+export interface ChatFolder {
+  id: string;
+  name: string;
+  chatIds: string[];
+}
+
 export interface StoryItem {
   id: string;
   type: "image" | "video";

@@ -1,20 +1,22 @@
 import { useState, useRef, useEffect } from "react";
 import {
   X, ArrowLeft, Camera, Users, UserPlus, UserMinus, Shield, Hash,
-  Bell, BellOff, Lock, Trash2, LogOut, ChevronRight, Search, Check, Plus,
+  Bell, BellOff, Lock, Trash2, LogOut, ChevronRight, Search, Check, Plus, Star,
 } from "lucide-react";
-import { Chat, Contact, Topic } from "@/data/mockData";
+import { Chat, Contact, Topic, ChatFolder } from "@/data/mockData";
 
 interface GroupSettingsDialogProps {
   open: boolean;
   chat: Chat;
   contacts: Contact[];
+  folders: ChatFolder[];
   onClose: () => void;
   onUpdateChat: (updated: Chat) => void;
   onDeleteChat: (chatId: string) => void;
+  onFoldersChange: (folders: ChatFolder[]) => void;
 }
 
-type Page = "main" | "members" | "addMembers" | "privacy" | "topics";
+type Page = "main" | "members" | "addMembers" | "privacy" | "topics" | "favorites";
 
 function resizeImg(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -38,7 +40,7 @@ function resizeImg(file: File): Promise<string> {
   });
 }
 
-export function GroupSettingsDialog({ open, chat, contacts, onClose, onUpdateChat, onDeleteChat }: GroupSettingsDialogProps) {
+export function GroupSettingsDialog({ open, chat, contacts, folders, onClose, onUpdateChat, onDeleteChat, onFoldersChange }: GroupSettingsDialogProps) {
   const [page, setPage] = useState<Page>("main");
   const [draft, setDraft] = useState<Chat>({ ...chat });
   const [memberSearch, setMemberSearch] = useState("");
@@ -107,6 +109,16 @@ export function GroupSettingsDialog({ open, chat, contacts, onClose, onUpdateCha
     else onClose();
   };
 
+  const isInAnyFolder = folders.some((f) => f.chatIds.includes(chat.id));
+
+  const toggleFolderForChat = (folderId: string) => {
+    onFoldersChange(folders.map((f) => {
+      if (f.id !== folderId) return f;
+      const has = f.chatIds.includes(chat.id);
+      return { ...f, chatIds: has ? f.chatIds.filter((id) => id !== chat.id) : [...f.chatIds, chat.id] };
+    }));
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in-up" onClick={onClose}>
       <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
@@ -122,7 +134,8 @@ export function GroupSettingsDialog({ open, chat, contacts, onClose, onUpdateCha
             {page === "main" ? (isChannel ? "Channel Settings" : "Group Settings") :
              page === "members" ? "Members" :
              page === "addMembers" ? "Add Members" :
-             page === "privacy" ? "Privacy" : "Topics"}
+             page === "privacy" ? "Privacy" :
+             page === "favorites" ? "Add to Favorites" : "Topics"}
           </h2>
           {page === "main" && (
             <button onClick={handleSave} className="text-xs font-semibold text-primary hover:underline">Save</button>
@@ -169,6 +182,7 @@ export function GroupSettingsDialog({ open, chat, contacts, onClose, onUpdateCha
 
               {/* Menu */}
               <div className="space-y-1">
+                <MenuItem icon={<Star className={`h-4 w-4 ${isInAnyFolder ? "text-primary" : ""}`} />} label={isInAnyFolder ? "In Favorites" : "Add to Favorites"} sub="Save to a folder" onClick={() => setPage("favorites")} />
                 <MenuItem icon={<Users className="h-4 w-4" />} label="Members" sub={`${(draft.memberIds || []).length} members`} onClick={() => setPage("members")} />
                 {!isChannel && <MenuItem icon={<Hash className="h-4 w-4" />} label="Topics" sub={`${(draft.topics || []).length} topics`} onClick={() => setPage("topics")} />}
                 <MenuItem icon={<Shield className="h-4 w-4" />} label="Privacy" sub="Permissions & access" onClick={() => setPage("privacy")} />
@@ -258,6 +272,35 @@ export function GroupSettingsDialog({ open, chat, contacts, onClose, onUpdateCha
           {/* ===== TOPICS ===== */}
           {page === "topics" && (
             <TopicsPage topics={draft.topics || []} onAdd={addTopic} onDelete={deleteTopic} />
+          )}
+
+          {/* ===== FAVORITES ===== */}
+          {page === "favorites" && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">Choose which folders to add this {isChannel ? "channel" : "group"} to:</p>
+              {folders.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No folders yet. Create one in the Favorites tab.</p>
+              ) : (
+                folders.map((f) => {
+                  const inFolder = f.chatIds.includes(chat.id);
+                  return (
+                    <button key={f.id} onClick={() => toggleFolderForChat(f.id)}
+                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-all ${inFolder ? "bg-primary/10 border border-primary/30 shadow-glow" : "hover:bg-surface-hover border border-transparent"}`}>
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${inFolder ? "gradient-primary" : "bg-secondary/80"}`}>
+                        <Star className={`h-4 w-4 ${inFolder ? "text-primary-foreground" : "text-muted-foreground"}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{f.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{f.chatIds.length} items</p>
+                      </div>
+                      <div className={`flex h-6 w-6 items-center justify-center rounded-full transition-all ${inFolder ? "gradient-primary" : "border border-border/60"}`}>
+                        {inFolder && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           )}
         </div>
       </div>
