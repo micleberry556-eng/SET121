@@ -421,6 +421,19 @@ if command -v ufw &>/dev/null && ufw status | grep -q "active"; then
 fi
 
 # =============================================================================
+# Step 11: Setup weekly auto-cleanup cron job
+# =============================================================================
+CLEANUP_SCRIPT="$SERVER_DIR/scripts/cleanup.sh"
+chmod +x "$CLEANUP_SCRIPT"
+CRON_LINE="0 3 * * 0 $CLEANUP_SCRIPT >> /var/log/meshlink-cleanup.log 2>&1"
+if ! crontab -l 2>/dev/null | grep -q "meshlink-cleanup"; then
+    (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -
+    log "Weekly cleanup cron job installed (Sundays at 3am)."
+else
+    log "Cleanup cron job already exists."
+fi
+
+# =============================================================================
 # Done!
 # =============================================================================
 echo ""

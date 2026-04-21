@@ -285,6 +285,12 @@ export function MeshProvider({ session, children }: Props) {
     const c = clientRef.current;
     if (!c) return;
     await c.leave(roomId);
+    // Forget the room so server can purge its data
+    try {
+      await c.forget(roomId);
+    } catch {
+      /* room may already be forgotten */
+    }
     refreshRooms();
   }, [refreshRooms]);
 

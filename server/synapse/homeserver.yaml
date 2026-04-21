@@ -86,12 +86,26 @@ presence:
 push:
   include_content: true
 
-# --- Retention ---
+# --- Retention (auto-delete old messages) ---
 retention:
   enabled: true
   default_policy:
     min_lifetime: 1d
-    max_lifetime: 365d
+    max_lifetime: 180d
+  purge_jobs:
+    - longest_max_lifetime: 180d
+      interval: 1d
+
+# --- Media retention (auto-delete old files) ---
+media_retention:
+  local_media_lifetime: 180d
+  remote_media_lifetime: 30d
+
+# --- Forgotten rooms cleanup ---
+forgotten_room_retention_period: 7d
+
+# --- Database cleanup ---
+delete_stale_devices_after: 90d
 
 # --- Trusted key servers ---
 trusted_key_servers:

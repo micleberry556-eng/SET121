@@ -1,11 +1,18 @@
 # Meshlink Server Stack
 # Usage: docker compose up -d
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # --- PostgreSQL database ---
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-synapse}
       POSTGRES_USER: ${POSTGRES_USER:-synapse}
@@ -26,6 +33,7 @@ services:
     image: matrixdotorg/synapse:latest
     restart: unless-stopped
     user: "991:991"
+    logging: *default-logging
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,6 +57,7 @@ services:
   element:
     image: vectorim/element-web:latest
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - ./element/config.json:/app/config.json:ro
     networks:
@@ -58,6 +67,7 @@ services:
   coturn:
     image: coturn/coturn:latest
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "${TURN_PORT:-3478}:3478/tcp"
       - "${TURN_PORT:-3478}:3478/udp"
@@ -73,6 +83,7 @@ services:
   nginx:
     image: nginx:alpine
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       synapse:
         condition: service_started
@@ -88,6 +99,7 @@ services:
   synapse-admin:
     image: ghcr.io/etkecc/synapse-admin:latest
     restart: unless-stopped
+    logging: *default-logging
     networks:
       - meshlink
 
@@ -95,6 +107,7 @@ services:
   admin-api:
     build: ./admin-api
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - ./.env:/app/.env:rw
       - ./docker-compose.yml:/app/docker-compose.yml:ro
