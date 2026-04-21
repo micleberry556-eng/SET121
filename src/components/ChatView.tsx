@@ -15,6 +15,7 @@ interface ChatViewProps {
   onCreateTopic?: (chatId: string, name: string, icon: string) => void;
   onDeleteTopic?: (chatId: string, topicId: string) => void;
   onSettingsClick?: () => void;
+  onDmSettingsClick?: () => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -32,7 +33,7 @@ function downloadMedia(attachment: MediaAttachment) {
   document.body.removeChild(a);
 }
 
-export function ChatView({ chat, onSendMessage, onBack, onCall, onCreateTopic, onDeleteTopic, onSettingsClick }: ChatViewProps) {
+export function ChatView({ chat, onSendMessage, onBack, onCall, onCreateTopic, onDeleteTopic, onSettingsClick, onDmSettingsClick }: ChatViewProps) {
   const [input, setInput] = useState("");
   const [pendingMedia, setPendingMedia] = useState<MediaAttachment[]>([]);
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
@@ -172,7 +173,11 @@ export function ChatView({ chat, onSendMessage, onBack, onCall, onCreateTopic, o
             </button>
           )}
           {chat.type === "dm" && (
-            <button className="rounded-xl p-2.5 hover:bg-surface-hover transition-all hover:scale-105">
+            <button
+              onClick={onDmSettingsClick}
+              className="rounded-xl p-2.5 hover:bg-surface-hover transition-all hover:scale-105"
+              title="Chat settings"
+            >
               <MoreVertical className="h-4 w-4 text-muted-foreground" />
             </button>
           )}
@@ -183,7 +188,7 @@ export function ChatView({ chat, onSendMessage, onBack, onCall, onCreateTopic, o
       <div className="relative z-10 flex items-center justify-center gap-2 py-2 bg-gradient-to-r from-primary/5 via-primary/10 to-accent/5 border-b border-border/30">
         <Lock className="h-3 w-3 text-primary" />
         <span className="text-[10px] font-mono uppercase tracking-[0.15em] gradient-text font-semibold">
-          end-to-end encrypted
+          end-to-end encrypted - X3DH + Double Ratchet
         </span>
         <Sparkles className="h-3 w-3 text-accent" />
       </div>

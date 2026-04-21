@@ -1,25 +1,21 @@
 import { useState } from "react";
 import { Search, Plus, Hash, Users, Pin, Sparkles, Star, FolderPlus, Folder, X, Pencil, Check } from "lucide-react";
-import { Chat, Story, StoryItem, UserProfile } from "@/data/mockData";
+import { Chat, Story, StoryItem, UserProfile, ChatFolder } from "@/data/mockData";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { CreateChatDialog } from "@/components/CreateChatDialog";
 import { StoriesBar, AddStoryDialog } from "@/components/StoriesBar";
-
-export interface ChatFolder {
-  id: string;
-  name: string;
-  chatIds: string[];
-}
 
 interface ChatSidebarProps {
   chats: Chat[];
   stories: Story[];
   profile: UserProfile;
+  folders: ChatFolder[];
   selectedChatId: string | null;
   onSelectChat: (id: string) => void;
   onCreateChat: (chat: Chat) => void;
   onAddStory: (items: StoryItem[]) => void;
   onOpenSettings: () => void;
+  onFoldersChange: (folders: ChatFolder[]) => void;
 }
 
 type FilterType = "all" | "dm" | "group" | "channel" | "favorites";
@@ -30,17 +26,14 @@ const TypeIcon = ({ type }: { type: Chat["type"] }) => {
   return null;
 };
 
-export function ChatSidebar({ chats, stories, profile, selectedChatId, onSelectChat, onCreateChat, onAddStory, onOpenSettings }: ChatSidebarProps) {
+export function ChatSidebar({ chats, stories, profile, folders, selectedChatId, onSelectChat, onCreateChat, onAddStory, onOpenSettings, onFoldersChange }: ChatSidebarProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [createType, setCreateType] = useState<"group" | "channel">("group");
   const [storyOpen, setStoryOpen] = useState(false);
 
-  // Folders state
-  const [folders, setFolders] = useState<ChatFolder[]>([
-    { id: "fav-default", name: "Favorites", chatIds: [] },
-  ]);
+  // Folders UI state (data comes from props)
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -73,25 +66,25 @@ export function ChatSidebar({ chats, stories, profile, selectedChatId, onSelectC
 
   const createFolder = () => {
     if (!newFolderName.trim()) return;
-    setFolders((prev) => [...prev, { id: `folder-${Date.now()}`, name: newFolderName.trim(), chatIds: [] }]);
+    onFoldersChange([...folders, { id: `folder-${Date.now()}`, name: newFolderName.trim(), chatIds: [] }]);
     setNewFolderName("");
     setCreatingFolder(false);
   };
 
   const renameFolder = (id: string) => {
     if (!editName.trim()) return;
-    setFolders((prev) => prev.map((f) => f.id === id ? { ...f, name: editName.trim() } : f));
+    onFoldersChange(folders.map((f) => f.id === id ? { ...f, name: editName.trim() } : f));
     setEditingFolder(null);
     setEditName("");
   };
 
   const deleteFolder = (id: string) => {
-    setFolders((prev) => prev.filter((f) => f.id !== id));
+    onFoldersChange(folders.filter((f) => f.id !== id));
     if (activeFolder === id) setActiveFolder(null);
   };
 
   const toggleChatInFolder = (folderId: string, chatId: string) => {
-    setFolders((prev) => prev.map((f) => {
+    onFoldersChange(folders.map((f) => {
       if (f.id !== folderId) return f;
       const has = f.chatIds.includes(chatId);
       return { ...f, chatIds: has ? f.chatIds.filter((id) => id !== chatId) : [...f.chatIds, chatId] };
