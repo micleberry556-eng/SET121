@@ -24,6 +24,7 @@ import {
   getInitials,
   uploadMedia,
   mxcToUrl,
+  mxcToThumbnail,
   type MeshlinkSession,
   type MeshClient,
   type MeshRoom as SdkRoom,
@@ -144,7 +145,7 @@ function eventToMesh(evt: MeshEvent, client: MeshClient): MeshMessage | null {
   let mediaName: string | undefined;
 
   if (msgtype === "m.image" && content.url) {
-    mediaUrl = mxcToUrl(content.url as string);
+    mediaUrl = mxcToThumbnail(content.url as string, 800, 600);
     mediaType = "image";
     mediaName = text;
     text = "";
