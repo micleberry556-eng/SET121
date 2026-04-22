@@ -76,6 +76,12 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
             : "image/jpeg",
           isFile: m.mediaType === "file",
         }] : undefined,
+        reactions: Object.fromEntries(
+          Object.entries(m.reactions).map(([emoji, reactors]) => [
+            emoji, { emoji, count: reactors.length, myReaction: reactors.some((r) => r.senderId === mesh.userId) },
+          ]),
+        ),
+        replyTo: m.replyTo ? { senderName: m.replyTo.senderName, text: m.replyTo.text } : undefined,
       })),
     };
   }, [chatList, selectedChatId, mesh]);
@@ -85,7 +91,7 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
     if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
-  const handleSendMessage = useCallback(async (chatId: string, text: string, media?: MediaAttachment[], _topicId?: string | null) => {
+  const handleSendMessage = useCallback(async (chatId: string, text: string, media?: MediaAttachment[], _topicId?: string | null, replyToId?: string) => {
     // Send media files first
     if (media && media.length > 0) {
       for (const attachment of media) {
@@ -102,7 +108,7 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
     }
     // Send text if any
     if (text.trim()) {
-      await mesh.sendMessage(chatId, text.trim());
+      await mesh.sendMessage(chatId, text.trim(), replyToId);
     }
   }, [mesh]);
 
@@ -225,6 +231,15 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
     }
   }, [mesh]);
 
+  const handleReaction = useCallback(async (chatId: string, messageId: string, emoji: string) => {
+    try { await mesh.addReaction(chatId, messageId, emoji); } catch (err) { console.error("Failed to add reaction:", err); }
+  }, [mesh]);
+
+  const handleForward = useCallback(async (messageId: string, toRoomId: string) => {
+    if (!selectedChatId) return;
+    try { await mesh.forwardMessage(selectedChatId, messageId, toRoomId); } catch (err) { console.error("Failed to forward:", err); }
+  }, [mesh, selectedChatId]);
+
   const handleBack = () => setSidebarOpen(true);
 
   // Show loading while connecting
@@ -266,6 +281,9 @@ const Index = ({ initialProfile, onProfileChange, onLogout }: IndexProps = {}) =
             onSendMessage={handleSendMessage}
             onBack={handleBack}
             onCall={selectedChat.type !== "channel" ? handleCall : undefined}
+            onReaction={handleReaction}
+            onForward={handleForward}
+            forwardTargets={chatList.filter((c) => c.id !== selectedChatId)}
             onSettingsClick={
               selectedChat.type === "group" || selectedChat.type === "channel"
                 ? () => setGroupSettingsOpen(true)

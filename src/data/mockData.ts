@@ -17,6 +17,8 @@ export interface Message {
   read: boolean;
   media?: MediaAttachment[];
   topicId?: string | null;
+  reactions?: Record<string, { emoji: string; count: number; myReaction: boolean }>;
+  replyTo?: { senderName: string; text: string };
 }
 
 export interface Topic {
