@@ -6,13 +6,13 @@ import {
 } from "lucide-react";
 import { languages, platforms, PlatformId } from "@/data/languages";
 import { UserProfile } from "@/data/mockData";
-import { registerAccount, checkServer, MeshlinkSession } from "@/lib/meshClient";
+import { registerAccount, loginAccount, checkServer, MeshlinkSession } from "@/lib/meshClient";
 
 interface RegisterPageProps {
   onComplete: (profile: UserProfile, language: string, platform: PlatformId | null) => void;
 }
 
-type Step = "welcome" | "language" | "platform" | "profile" | "done";
+type Step = "welcome" | "login" | "language" | "platform" | "profile" | "done";
 
 function resizeAvatar(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -84,6 +84,13 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
     } catch { /* ignore */ }
   };
 
+  // Login state
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   const [registering, setRegistering] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
@@ -117,7 +124,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
           profilePhoto: "everyone",
           forwarding: "everyone",
           calls: "everyone",
-          groups: "contacts",
+          groups: "everyone",
           readReceipts: true,
           onlineStatus: true,
         },
@@ -128,6 +135,40 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
       setRegError(message);
     } finally {
       setRegistering(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!loginUsername.trim() || !loginPassword) return;
+    setLoggingIn(true);
+    setLoginError(null);
+    try {
+      const session: MeshlinkSession = await loginAccount(loginUsername.trim(), loginPassword);
+      const displayName = loginUsername.trim();
+      const initials = displayName.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2) || "ME";
+      const profile: UserProfile = {
+        name: displayName,
+        username: loginUsername.trim(),
+        bio: "",
+        avatarUrl: null,
+        avatarInitials: initials,
+        peerId: session.userId,
+        privacy: {
+          lastSeen: "everyone",
+          profilePhoto: "everyone",
+          forwarding: "everyone",
+          calls: "everyone",
+          groups: "everyone",
+          readReceipts: true,
+          onlineStatus: true,
+        },
+      };
+      onComplete(profile, "en", null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      setLoginError(message);
+    } finally {
+      setLoggingIn(false);
     }
   };
 
@@ -211,9 +252,70 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
               onClick={() => setStep("language")}
               className="w-full max-w-xs rounded-2xl py-3.5 text-sm font-semibold gradient-primary text-primary-foreground shadow-glow hover:scale-[1.02] transition-all"
             >
-              Get Started
+              Create Account
+            </button>
+            <button
+              onClick={() => setStep("login")}
+              className="w-full max-w-xs rounded-2xl py-3 text-sm font-medium text-foreground border border-border/60 hover:bg-surface-hover hover:border-primary/40 transition-all"
+            >
+              Sign In
             </button>
             <p className="text-[10px] font-mono text-muted-foreground">No phone number required - fully anonymous</p>
+          </div>
+        )}
+
+        {/* ===== LOGIN ===== */}
+        {step === "login" && (
+          <div className="rounded-3xl glass-strong border border-border/60 shadow-elegant p-6 animate-fade-in-up">
+            <div className="flex items-center gap-3 mb-5">
+              <button onClick={() => setStep("welcome")} className="rounded-lg p-1.5 hover:bg-surface-hover transition-colors">
+                <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <div className="flex-1">
+                <h2 className="text-lg font-serif italic gradient-text">Sign In</h2>
+                <p className="text-[11px] text-muted-foreground">Welcome back to Meshlink</p>
+              </div>
+              <Lock className="h-5 w-5 text-primary" />
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground mb-1.5 block">Username</label>
+                <div className="flex items-center gap-3 rounded-2xl glass border border-border/50 px-4 py-3 focus-within:border-primary/50 focus-within:shadow-glow transition-all">
+                  <AtSign className="h-4 w-4 text-muted-foreground" />
+                  <input type="text" value={loginUsername} onChange={(e) => setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} placeholder="username" autoFocus className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground mb-1.5 block">Password</label>
+                <div className="flex items-center gap-3 rounded-2xl glass border border-border/50 px-4 py-3 focus-within:border-primary/50 focus-within:shadow-glow transition-all">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  <input type={showLoginPassword ? "text" : "password"} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Your password" onKeyDown={(e) => e.key === "Enter" && loginUsername.trim() && loginPassword && handleLogin()} className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none" />
+                  <button onClick={() => setShowLoginPassword((s) => !s)} className="text-muted-foreground hover:text-primary transition-colors">
+                    {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {loginError && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-destructive/10 border border-destructive/20">
+                  <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                  <p className="text-[11px] text-destructive">{loginError}</p>
+                </div>
+              )}
+
+              <button onClick={handleLogin} disabled={!loginUsername.trim() || !loginPassword || loggingIn}
+                className={`w-full rounded-2xl py-3.5 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                  loginUsername.trim() && loginPassword && !loggingIn ? "gradient-primary text-primary-foreground shadow-glow hover:scale-[1.02]" : "bg-secondary text-muted-foreground cursor-not-allowed"
+                }`}>
+                {loggingIn ? (<><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</>) : "Sign In"}
+              </button>
+
+              <button onClick={() => setStep("language")} className="w-full rounded-2xl py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-all">
+                Don't have an account? Create one
+              </button>
+            </div>
           </div>
         )}
 
@@ -524,7 +626,7 @@ export default function RegisterPage({ onComplete }: RegisterPageProps) {
         )}
 
         {/* Step indicator */}
-        {step !== "welcome" && step !== "done" && (
+        {step !== "welcome" && step !== "login" && step !== "done" && (
           <div className="flex justify-center gap-2 mt-6">
             {(["language", "platform", "profile"] as const).map((s, i) => (
               <div key={s} className={`h-1.5 rounded-full transition-all ${

@@ -197,13 +197,13 @@ export async function loginAccount(
 
 /** Start the client (sync with server). */
 export async function startClient(client: MeshClient): Promise<void> {
-  await client.startClient({ initialSyncLimit: 5 });
+  await client.startClient({ initialSyncLimit: 50 });
 
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
       client.removeListener(sdk.ClientEvent.Sync, onSync);
       resolve();
-    }, 8000);
+    }, 15000);
 
     const onSync = (state: string) => {
       if (state === "PREPARED") {

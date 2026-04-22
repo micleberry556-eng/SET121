@@ -2,14 +2,16 @@ export interface MediaAttachment {
   id: string;
   type: "image" | "video" | "audio";
   name: string;
-  url: string;       // blob URL or data URL
-  size: number;       // bytes
+  url: string;
+  size: number;
   mimeType: string;
+  isFile?: boolean;
 }
 
 export interface Message {
   id: string;
   senderId: string;
+  senderName?: string;
   text: string;
   timestamp: string;
   read: boolean;
@@ -97,7 +99,7 @@ export const defaultProfile: UserProfile = {
     profilePhoto: "everyone",
     forwarding: "everyone",
     calls: "everyone",
-    groups: "contacts",
+    groups: "everyone",
     readReceipts: true,
     onlineStatus: true,
   },

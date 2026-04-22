@@ -24,13 +24,24 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
-function downloadMedia(attachment: MediaAttachment) {
-  const a = document.createElement("a");
-  a.href = attachment.url;
-  a.download = attachment.name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+async function downloadMedia(attachment: MediaAttachment) {
+  try {
+    const resp = await fetch(attachment.url);
+    const blob = await resp.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = attachment.name;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 100);
+  } catch {
+    const a = document.createElement("a");
+    a.href = attachment.url;
+    a.download = attachment.name;
+    a.click();
+  }
 }
 
 export function ChatView({ chat, onSendMessage, onBack, onCall, onCreateTopic, onDeleteTopic, onSettingsClick, onDmSettingsClick }: ChatViewProps) {
@@ -97,7 +108,7 @@ export function ChatView({ chat, onSendMessage, onBack, onCall, onCreateTopic, o
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,video/*,audio/*"
+        accept="image/*,video/*,audio/*,application/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt"
         className="hidden"
         onChange={handleFileSelect}
       />
@@ -314,6 +325,23 @@ export function ChatView({ chat, onSendMessage, onBack, onCall, onCreateTopic, o
 }
 
 function MediaDisplay({ attachment }: { attachment: MediaAttachment }) {
+  if (attachment.isFile) {
+    return (
+      <div className="mt-2 rounded-xl glass border border-border/40 p-3">
+        <div className="flex items-center gap-2">
+          <Paperclip className="h-4 w-4 text-primary flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-xs text-foreground truncate block">{attachment.name}</span>
+            {attachment.size > 0 && <span className="text-[10px] text-muted-foreground font-mono">{formatFileSize(attachment.size)}</span>}
+          </div>
+          <button onClick={() => downloadMedia(attachment)} className="hover:text-primary transition-colors flex-shrink-0">
+            <Download className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (attachment.type === "image") {
     return (
       <div className="relative group mt-2 rounded-xl overflow-hidden">
@@ -391,7 +419,7 @@ function MessageBubble({ message, index }: { message: Message; index: number }) 
       >
         {!isOwn && (
           <p className="text-[11px] font-semibold gradient-text-accent mb-1">
-            {message.senderId.charAt(0).toUpperCase() + message.senderId.slice(1)}
+            {message.senderName || message.senderId.split(":")[0].replace("@", "")}
           </p>
         )}
         {message.text && (
