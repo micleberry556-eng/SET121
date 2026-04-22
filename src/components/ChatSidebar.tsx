@@ -25,6 +25,7 @@ interface ChatSidebarProps {
   onOpenSettings: () => void;
   onFoldersChange: (folders: ChatFolder[]) => void;
   onSearch?: (query: string) => Promise<SearchResult[]>;
+  onSearchUsers?: (term: string) => Promise<{ userId: string; displayName: string }[]>;
   onStartDm?: (userId: string) => void;
   onJoinRoom?: (roomId: string) => void;
 }
@@ -37,7 +38,7 @@ const TypeIcon = ({ type }: { type: Chat["type"] }) => {
   return null;
 };
 
-export function ChatSidebar({ chats, stories, profile, folders, selectedChatId, onSelectChat, onCreateChat, onAddStory, onOpenSettings, onFoldersChange, onSearch, onStartDm, onJoinRoom }: ChatSidebarProps) {
+export function ChatSidebar({ chats, stories, profile, folders, selectedChatId, onSelectChat, onCreateChat, onAddStory, onOpenSettings, onFoldersChange, onSearch, onSearchUsers, onStartDm, onJoinRoom }: ChatSidebarProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [createOpen, setCreateOpen] = useState(false);
@@ -408,7 +409,7 @@ export function ChatSidebar({ chats, stories, profile, folders, selectedChatId, 
         </button>
       </div>
 
-      <CreateChatDialog open={createOpen} type={createType} onClose={() => setCreateOpen(false)} onCreate={onCreateChat} />
+      <CreateChatDialog open={createOpen} type={createType} onClose={() => setCreateOpen(false)} onCreate={onCreateChat} onSearchUsers={onSearchUsers} />
       <AddStoryDialog open={storyOpen} onClose={() => setStoryOpen(false)} onAdd={onAddStory} />
     </>
   );

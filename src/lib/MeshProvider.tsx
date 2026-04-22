@@ -55,8 +55,9 @@ export interface MeshMessage {
   timestamp: string;
   isOwn: boolean;
   mediaUrl?: string;
-  mediaType?: "image" | "video" | "audio";
+  mediaType?: "image" | "video" | "audio" | "file";
   mediaName?: string;
+  mediaSize?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -98,9 +99,34 @@ export function useMesh(): MeshContextValue {
 /*  Helpers                                                           */
 /* ------------------------------------------------------------------ */
 
-function roomToMesh(room: SdkRoom, myUserId: string): MeshRoom {
+/** Get the raw timestamp of the last message event in a room (for sorting). */
+function getLastMessageTs(room: SdkRoom): number {
+  const timeline = room.getLiveTimeline().getEvents();
+  for (let i = timeline.length - 1; i >= 0; i--) {
+    if (timeline[i].getType() === "m.room.message") {
+      return timeline[i].getTs();
+    }
+  }
+  return room.getLiveTimeline().getEvents()[0]?.getTs() || 0;
+}
+
+/** Check if a room is a DM by inspecting m.direct account data or member count. */
+function isDmRoom(room: SdkRoom, client: MeshClient): boolean {
+  if (room.isSpaceRoom()) return false;
+  const directEvent = client.getAccountData("m.direct");
+  if (directEvent) {
+    const directMap = directEvent.getContent() as Record<string, string[]>;
+    for (const roomIds of Object.values(directMap)) {
+      if (Array.isArray(roomIds) && roomIds.includes(room.roomId)) return true;
+    }
+  }
   const members = room.getJoinedMembers();
-  const isDm = members.length <= 2 && !room.isSpaceRoom();
+  return members.length <= 2;
+}
+
+function roomToMesh(room: SdkRoom, myUserId: string, client: MeshClient): MeshRoom {
+  const members = room.getJoinedMembers();
+  const isDm = isDmRoom(room, client);
 
   const timeline = room.getLiveTimeline().getEvents();
   const lastEvt = [...timeline].reverse().find(
@@ -110,15 +136,24 @@ function roomToMesh(room: SdkRoom, myUserId: string): MeshRoom {
   let lastMessageTime = "";
   if (lastEvt) {
     const content = lastEvt.getContent();
-    lastMessage = typeof content.body === "string" ? content.body : "";
-    const ts = lastEvt.getTs();
-    lastMessageTime = formatTime(ts);
+    const msgtype = content.msgtype as string;
+    if (msgtype === "m.image") lastMessage = "Photo";
+    else if (msgtype === "m.video") lastMessage = "Video";
+    else if (msgtype === "m.audio") lastMessage = "Audio";
+    else if (msgtype === "m.file") lastMessage = "File: " + (typeof content.body === "string" ? content.body : "");
+    else lastMessage = typeof content.body === "string" ? content.body : "";
+
+    if (!isDm) {
+      const senderName = getUserDisplayName(client, lastEvt.getSender()!);
+      lastMessage = `${senderName}: ${lastMessage}`;
+    }
+    lastMessageTime = formatTime(lastEvt.getTs());
   }
 
   let name = room.name || "Unnamed";
   if (isDm) {
     const other = members.find((m) => m.userId !== myUserId);
-    if (other) name = other.name || other.userId;
+    if (other) name = other.name || other.userId.split(":")[0].replace("@", "");
   }
 
   return {
@@ -143,27 +178,35 @@ function eventToMesh(evt: MeshEvent, client: MeshClient): MeshMessage | null {
 
   let text = typeof content.body === "string" ? content.body : "";
   let mediaUrl: string | undefined;
-  let mediaType: "image" | "video" | "audio" | undefined;
+  let mediaType: "image" | "video" | "audio" | "file" | undefined;
   let mediaName: string | undefined;
+  let mediaSize: number | undefined;
+
+  const info = content.info as { size?: number; mimetype?: string } | undefined;
 
   if (msgtype === "m.image" && content.url) {
     mediaUrl = mxcToThumbnail(content.url as string, 800, 600);
     mediaType = "image";
     mediaName = text;
+    mediaSize = info?.size;
     text = "";
   } else if (msgtype === "m.video" && content.url) {
     mediaUrl = mxcToUrl(content.url as string);
     mediaType = "video";
     mediaName = text;
+    mediaSize = info?.size;
     text = "";
   } else if (msgtype === "m.audio" && content.url) {
     mediaUrl = mxcToUrl(content.url as string);
     mediaType = "audio";
     mediaName = text;
+    mediaSize = info?.size;
     text = "";
   } else if (msgtype === "m.file" && content.url) {
     mediaUrl = mxcToUrl(content.url as string);
+    mediaType = "file";
     mediaName = text;
+    mediaSize = info?.size;
     text = "";
   }
 
@@ -177,6 +220,7 @@ function eventToMesh(evt: MeshEvent, client: MeshClient): MeshMessage | null {
     mediaUrl,
     mediaType,
     mediaName,
+    mediaSize,
   };
 }
 
@@ -211,14 +255,10 @@ export function MeshProvider({ session, children }: Props) {
     const c = clientRef.current;
     if (!c) return;
     const allRooms = c.getRooms();
-    const meshRooms = allRooms
-      .filter((r) => r.getMyMembership() === "join")
-      .map((r) => roomToMesh(r, session.userId))
-      .sort((a, b) => {
-        if (!a.lastMessageTime && b.lastMessageTime) return 1;
-        if (a.lastMessageTime && !b.lastMessageTime) return -1;
-        return 0;
-      });
+    const joinedRooms = allRooms.filter((r) => r.getMyMembership() === "join");
+    // Sort by last message timestamp (most recent first)
+    joinedRooms.sort((a, b) => getLastMessageTs(b) - getLastMessageTs(a));
+    const meshRooms = joinedRooms.map((r) => roomToMesh(r, session.userId, c));
     setRooms(meshRooms);
   }, [session.userId]);
 
@@ -307,11 +347,40 @@ export function MeshProvider({ session, children }: Props) {
   const createDm = useCallback(async (targetUserId: string): Promise<string> => {
     const c = clientRef.current;
     if (!c) throw new Error("Not connected");
+
+    // Check if a DM already exists with this user
+    const existingRooms = c.getRooms();
+    for (const room of existingRooms) {
+      if (room.getMyMembership() !== "join") continue;
+      if (!isDmRoom(room, c)) continue;
+      const members = room.getJoinedMembers();
+      const invited = room.getMembersWithMembership("invite");
+      const allUserIds = [...members, ...invited].map((m) => m.userId);
+      if (allUserIds.includes(targetUserId)) {
+        return room.roomId;
+      }
+    }
+
+    // Create new DM
     const resp = await c.createRoom({
       preset: "trusted_private_chat" as sdk.Preset,
       invite: [targetUserId],
       is_direct: true,
     });
+
+    // Update m.direct account data so the room is recognized as a DM
+    try {
+      const directEvent = c.getAccountData("m.direct");
+      const directMap: Record<string, string[]> = directEvent
+        ? { ...(directEvent.getContent() as Record<string, string[]>) }
+        : {};
+      if (!directMap[targetUserId]) directMap[targetUserId] = [];
+      directMap[targetUserId].push(resp.room_id);
+      await c.setAccountData("m.direct", directMap);
+    } catch {
+      // Non-critical
+    }
+
     return resp.room_id;
   }, []);
 
@@ -370,11 +439,14 @@ export function MeshProvider({ session, children }: Props) {
       const c = clientRef.current;
       if (!c) return [];
       try {
-        const resp = await c.searchUserDirectory({ term, limit: 20 });
-        return resp.results.map((r) => ({
-          userId: r.user_id,
-          displayName: r.display_name || r.user_id,
-        }));
+        const resp = await c.searchUserDirectory({ term, limit: 30 });
+        const myId = c.getUserId();
+        return resp.results
+          .filter((r) => r.user_id !== myId)
+          .map((r) => ({
+            userId: r.user_id,
+            displayName: r.display_name || r.user_id.split(":")[0].replace("@", ""),
+          }));
       } catch {
         return [];
       }
@@ -385,7 +457,6 @@ export function MeshProvider({ session, children }: Props) {
   const publicRoomsCache = useRef<{ data: MeshRoom[]; ts: number }>({ data: [], ts: 0 });
 
   const getPublicRooms = useCallback(async (): Promise<MeshRoom[]> => {
-    // Cache for 30 seconds
     if (Date.now() - publicRoomsCache.current.ts < 30000) {
       return publicRoomsCache.current.data;
     }

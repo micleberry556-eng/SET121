@@ -32,7 +32,7 @@ log_config: /data/log.config
 
 # --- Media storage ---
 media_store_path: /data/media_store
-max_upload_size: 50M
+max_upload_size: 100M
 enable_authenticated_media: false
 url_preview_enabled: true
 url_preview_ip_range_blacklist:
@@ -79,6 +79,12 @@ rc_login:
     per_second: 1
     burst_count: 5
 
+# --- User directory (allow all users to find each other) ---
+user_directory:
+  enabled: true
+  search_all_users: true
+  prefer_local_users: true
+
 # --- Presence ---
 presence:
   enabled: true
@@ -87,20 +93,20 @@ presence:
 push:
   include_content: true
 
-# --- Retention (auto-delete old messages) ---
+# --- Retention (keep messages for a long time) ---
 retention:
   enabled: true
   default_policy:
     min_lifetime: 1d
-    max_lifetime: 180d
+    max_lifetime: 365d
   purge_jobs:
-    - longest_max_lifetime: 180d
+    - longest_max_lifetime: 365d
       interval: 1d
 
-# --- Media retention (auto-delete old files) ---
+# --- Media retention ---
 media_retention:
-  local_media_lifetime: 180d
-  remote_media_lifetime: 30d
+  local_media_lifetime: 365d
+  remote_media_lifetime: 90d
 
 # --- Forgotten rooms cleanup ---
 forgotten_room_retention_period: 7d
