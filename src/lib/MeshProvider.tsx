@@ -47,6 +47,19 @@ export interface MeshRoom {
   members: number;
 }
 
+export interface MeshReaction {
+  emoji: string;
+  senderId: string;
+  senderName: string;
+}
+
+export interface MeshReplyTo {
+  eventId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+}
+
 export interface MeshMessage {
   id: string;
   senderId: string;
@@ -58,6 +71,8 @@ export interface MeshMessage {
   mediaType?: "image" | "video" | "audio" | "file";
   mediaName?: string;
   mediaSize?: number;
+  reactions: Record<string, MeshReaction[]>;
+  replyTo?: MeshReplyTo;
 }
 
 /* ------------------------------------------------------------------ */
@@ -70,9 +85,12 @@ interface MeshContextValue {
   userId: string;
   rooms: MeshRoom[];
   getMessages: (roomId: string) => MeshMessage[];
-  sendMessage: (roomId: string, text: string) => Promise<void>;
+  sendMessage: (roomId: string, text: string, replyToEventId?: string) => Promise<void>;
   sendMedia: (roomId: string, file: File) => Promise<void>;
   deleteMessage: (roomId: string, eventId: string) => Promise<void>;
+  addReaction: (roomId: string, eventId: string, emoji: string) => Promise<void>;
+  removeReaction: (roomId: string, eventId: string, emoji: string) => Promise<void>;
+  forwardMessage: (fromRoomId: string, eventId: string, toRoomId: string) => Promise<void>;
   createDm: (userId: string) => Promise<string>;
   createGroup: (name: string, userIds: string[]) => Promise<string>;
   createChannel: (name: string) => Promise<string>;
@@ -80,6 +98,7 @@ interface MeshContextValue {
   leaveRoom: (roomId: string) => Promise<void>;
   inviteUser: (roomId: string, userId: string) => Promise<void>;
   searchUsers: (term: string) => Promise<{ userId: string; displayName: string }[]>;
+  searchMessages: (roomId: string, query: string) => MeshMessage[];
   getPublicRooms: () => Promise<MeshRoom[]>;
 }
 
@@ -169,7 +188,7 @@ function roomToMesh(room: SdkRoom, myUserId: string, client: MeshClient): MeshRo
   };
 }
 
-function eventToMesh(evt: MeshEvent, client: MeshClient): MeshMessage | null {
+function eventToMesh(evt: MeshEvent, client: MeshClient, room: SdkRoom): MeshMessage | null {
   if (evt.getType() !== "m.room.message") return null;
   if (evt.isRedacted()) return null;
   const content = evt.getContent();
@@ -210,8 +229,39 @@ function eventToMesh(evt: MeshEvent, client: MeshClient): MeshMessage | null {
     text = "";
   }
 
+  // Strip reply fallback from text
+  if (text.startsWith("> ") && text.includes("\n\n")) {
+    text = text.substring(text.indexOf("\n\n") + 2);
+  }
+
+  // Extract reactions
+  const reactions: Record<string, MeshReaction[]> = {};
+  const eventId = evt.getId()!;
+  const allEvents = room.getLiveTimeline().getEvents();
+  for (const e of allEvents) {
+    if (e.getType() !== "m.reaction") continue;
+    const rel = e.getContent()["m.relates_to"];
+    if (!rel || rel.event_id !== eventId || rel.rel_type !== "m.annotation") continue;
+    const emoji = rel.key as string;
+    if (!emoji) continue;
+    if (!reactions[emoji]) reactions[emoji] = [];
+    reactions[emoji].push({ emoji, senderId: e.getSender()!, senderName: getUserDisplayName(client, e.getSender()!) });
+  }
+
+  // Extract reply-to
+  let replyTo: MeshReplyTo | undefined;
+  const relatesTo = content["m.relates_to"] as { "m.in_reply_to"?: { event_id: string } } | undefined;
+  if (relatesTo?.["m.in_reply_to"]?.event_id) {
+    const replyEventId = relatesTo["m.in_reply_to"].event_id;
+    const replyEvent = allEvents.find((e) => e.getId() === replyEventId);
+    if (replyEvent && replyEvent.getType() === "m.room.message") {
+      const rc = replyEvent.getContent();
+      replyTo = { eventId: replyEventId, senderId: replyEvent.getSender()!, senderName: getUserDisplayName(client, replyEvent.getSender()!), text: typeof rc.body === "string" ? rc.body : "" };
+    }
+  }
+
   return {
-    id: evt.getId()!,
+    id: eventId,
     senderId,
     senderName: getUserDisplayName(client, senderId),
     text,
@@ -221,6 +271,8 @@ function eventToMesh(evt: MeshEvent, client: MeshClient): MeshMessage | null {
     mediaType,
     mediaName,
     mediaSize,
+    reactions,
+    replyTo,
   };
 }
 
@@ -310,16 +362,24 @@ export function MeshProvider({ session, children }: Props) {
       if (!room) return [];
       const events = room.getLiveTimeline().getEvents();
       return events
-        .map((e) => eventToMesh(e, c))
+        .map((e) => eventToMesh(e, c, room))
         .filter((m): m is MeshMessage => m !== null);
     },
     [],
   );
 
-  const sendMessage = useCallback(async (roomId: string, text: string) => {
+  const sendMessage = useCallback(async (roomId: string, text: string, replyToEventId?: string) => {
     const c = clientRef.current;
     if (!c) return;
-    await c.sendTextMessage(roomId, text);
+    if (replyToEventId) {
+      await c.sendMessage(roomId, {
+        msgtype: "m.text",
+        body: text,
+        "m.relates_to": { "m.in_reply_to": { event_id: replyToEventId } },
+      });
+    } else {
+      await c.sendTextMessage(roomId, text);
+    }
   }, []);
 
   const sendMedia = useCallback(async (roomId: string, file: File) => {
@@ -454,6 +514,50 @@ export function MeshProvider({ session, children }: Props) {
     [],
   );
 
+  const addReaction = useCallback(async (roomId: string, eventId: string, emoji: string) => {
+    const c = clientRef.current;
+    if (!c) return;
+    await c.sendEvent(roomId, "m.reaction", { "m.relates_to": { rel_type: "m.annotation", event_id: eventId, key: emoji } });
+  }, []);
+
+  const removeReaction = useCallback(async (roomId: string, eventId: string, emoji: string) => {
+    const c = clientRef.current;
+    if (!c) return;
+    const room = c.getRoom(roomId);
+    if (!room) return;
+    const myId = c.getUserId();
+    for (const e of room.getLiveTimeline().getEvents()) {
+      if (e.getType() !== "m.reaction" || e.getSender() !== myId) continue;
+      const rel = e.getContent()["m.relates_to"];
+      if (rel?.event_id === eventId && rel?.key === emoji) { await c.redactEvent(roomId, e.getId()!); break; }
+    }
+  }, []);
+
+  const forwardMessage = useCallback(async (fromRoomId: string, eventId: string, toRoomId: string) => {
+    const c = clientRef.current;
+    if (!c) return;
+    const room = c.getRoom(fromRoomId);
+    if (!room) return;
+    const evt = room.getLiveTimeline().getEvents().find((e) => e.getId() === eventId);
+    if (!evt) return;
+    const content = evt.getContent();
+    await c.sendMessage(toRoomId, { msgtype: content.msgtype || "m.text", body: content.body || "", ...(content.url ? { url: content.url } : {}), ...(content.info ? { info: content.info } : {}) });
+  }, []);
+
+  const searchMessages = useCallback(
+    (roomId: string, query: string): MeshMessage[] => {
+      const c = clientRef.current;
+      if (!c || !query.trim()) return [];
+      const room = c.getRoom(roomId);
+      if (!room) return [];
+      const lq = query.toLowerCase();
+      return room.getLiveTimeline().getEvents()
+        .map((e) => eventToMesh(e, c, room))
+        .filter((m): m is MeshMessage => m !== null && m.text.toLowerCase().includes(lq));
+    },
+    [],
+  );
+
   const publicRoomsCache = useRef<{ data: MeshRoom[]; ts: number }>({ data: [], ts: 0 });
 
   const getPublicRooms = useCallback(async (): Promise<MeshRoom[]> => {
@@ -491,6 +595,9 @@ export function MeshProvider({ session, children }: Props) {
     sendMessage,
     sendMedia,
     deleteMessage,
+    addReaction,
+    removeReaction,
+    forwardMessage,
     createDm,
     createGroup,
     createChannel,
@@ -498,6 +605,7 @@ export function MeshProvider({ session, children }: Props) {
     leaveRoom,
     inviteUser,
     searchUsers,
+    searchMessages,
     getPublicRooms,
   };
 
